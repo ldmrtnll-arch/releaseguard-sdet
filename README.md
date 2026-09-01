@@ -1,157 +1,111 @@
 # ReleaseGuard
 
-ReleaseGuard is an SDET and Quality Engineering portfolio project built around a controlled SaaS subscription platform. The application is deliberately small; the product demonstrated by this repository is the reliable, observable, and maintainable quality-engineering ecosystem around it.
+ReleaseGuard is an SDET and Quality Engineering portfolio project built around a controlled SaaS subscription platform. The application is deliberately small; its purpose is to demonstrate reliable, observable, and maintainable quality engineering around a real domain.
 
-Phase 2 adds a real authentication domain and a parallel-safe test-data foundation to the TypeScript monorepo established in Phase 1.
+Phase 3 adds immutable plan reference data, the complete subscription lifecycle, and a professional API automation layer to the authentication and test-data foundation from the previous phases.
 
 ## Current architecture
 
 ```text
-Browser → React/Vite web → Fastify API → PostgreSQL
-                             ├─ Auth routes
-Playwright API tests ────────┤  Auth service
-                             ├─ User repository
-Test-data builders ──────────┘
+Browser -> React/Vite web -> Fastify API -> Services -> Repositories -> PostgreSQL
+Playwright API tests -> API clients -> Fastify API
+                         Fixtures -> test-scoped users and subscriptions
+                         DB helper -> selected persistence invariants
 ```
 
-The web application still provides the Phase 1 health integration; a UI login experience is intentionally deferred. Authentication is currently exercised through the API.
+The web application continues to expose the health integration. Login, plans, and subscription screens are intentionally reserved for Phase 4.
 
 ## Implemented API
 
-| Method | Endpoint                | Purpose                                |
-| ------ | ----------------------- | -------------------------------------- |
-| `GET`  | `/health`               | Process liveness                       |
-| `GET`  | `/health/ready`         | PostgreSQL-backed readiness            |
-| `POST` | `/api/v1/auth/register` | Create a user; returns the public user |
-| `POST` | `/api/v1/auth/login`    | Authenticate and issue a one-hour JWT  |
-| `GET`  | `/api/v1/auth/me`       | Return the authenticated public user   |
+| Method   | Endpoint                        | Authentication | Purpose                                      |
+| -------- | ------------------------------- | -------------- | -------------------------------------------- |
+| `GET`    | `/health`                       | Public         | Process liveness                             |
+| `GET`    | `/health/ready`                 | Public         | PostgreSQL-backed readiness                  |
+| `POST`   | `/api/v1/auth/register`         | Public         | Create a user                                |
+| `POST`   | `/api/v1/auth/login`            | Public         | Issue a one-hour JWT                         |
+| `GET`    | `/api/v1/auth/me`               | Bearer JWT     | Return the authenticated user                |
+| `GET`    | `/api/v1/plans`                 | Public         | List active plans in deterministic order     |
+| `GET`    | `/api/v1/plans/:id`             | Public         | Return an active plan                        |
+| `POST`   | `/api/v1/subscriptions`         | Bearer JWT     | Create an active subscription                |
+| `GET`    | `/api/v1/subscriptions/current` | Bearer JWT     | Return the current active subscription       |
+| `PATCH`  | `/api/v1/subscriptions/current` | Bearer JWT     | Change the current plan without billing      |
+| `DELETE` | `/api/v1/subscriptions/current` | Bearer JWT     | Cancel while preserving subscription history |
 
-Errors use a stable `{ "error": { "code", "message" } }` envelope. Public users never contain passwords or password hashes.
+New domain responses use a `{ "data": ... }` envelope. Errors use `{ "error": { "code", "message" } }`. Subscription ownership always comes from the JWT `sub`; request bodies cannot select a user.
+
+## Plans and money
+
+Starter, Professional, and Business are versioned reference data with deterministic UUIDs. Prices are stored and exposed as integer USD cents (`900`, `2900`, and `7900`) and the only supported billing interval is `monthly`. Plans are public and read-only; there are no mutation endpoints.
+
+## Subscription rules
+
+- A user may have at most one active subscription.
+- The database enforces the invariant with a partial unique index.
+- The target plan must exist and be active.
+- Changing to the current plan returns `SUBSCRIPTION_ALREADY_ON_PLAN`.
+- Cancellation changes state to `cancelled`, records `cancelledAt`, and preserves history.
+- A cancelled user can subscribe again to another plan.
 
 ## Stack
 
 - Node.js 22+, TypeScript strict, npm workspaces
-- Fastify 5, PostgreSQL 17, SQL migrations
-- bcrypt password hashing and `@fastify/jwt`
+- Fastify 5, PostgreSQL 17, versioned SQL migrations
+- bcrypt and JWT authentication, Zod request validation
 - React 19 and Vite 7
 - Playwright Test and Vitest
 - ESLint, typescript-eslint, and Prettier
 - Docker Compose and GitHub Actions
 
-## Requirements
-
-- Node.js 22 or newer
-- npm
-- Docker with Compose support
-
-No global application dependencies are required.
-
 ## Local setup
 
-1. Optionally create local settings from the safe development template:
+```powershell
+Copy-Item .env.example .env
+npm ci
+npx playwright install chromium
+docker compose up -d postgres
+npm run db:migrate
+npm run dev
+```
 
-   ```powershell
-   Copy-Item .env.example .env
-   ```
+The web application runs at `http://localhost:5173`, the API at `http://localhost:4000`, and PostgreSQL maps host port `5433`.
 
-2. Install pinned dependencies and the Chromium browser:
-
-   ```powershell
-   npm ci
-   npx playwright install chromium
-   ```
-
-3. Start PostgreSQL and apply all pending migrations:
-
-   ```powershell
-   docker compose up -d postgres
-   npm run db:migrate
-   ```
-
-4. Start the API and web application:
-
-   ```powershell
-   npm run dev
-   ```
-
-The web application runs at `http://localhost:5173`, the API at `http://localhost:4000`, and PostgreSQL maps host port `5433` to avoid common local conflicts.
-
-For a fully containerized environment:
+For the containerized stack:
 
 ```powershell
 docker compose up --build -d
 ```
 
-Compose runs a dedicated, idempotent migration service after PostgreSQL becomes healthy and before starting the API. Use `docker compose stop` to preserve the local database, or `docker compose down --volumes` only when intentionally discarding it.
-
-## Environment variables
-
-| Variable         | Default                     | Purpose                                  |
-| ---------------- | --------------------------- | ---------------------------------------- |
-| `API_HOST`       | `0.0.0.0`                   | Fastify bind address                     |
-| `API_PORT`       | `4000`                      | API port                                 |
-| `CORS_ORIGIN`    | `http://localhost:5173`     | Allowed browser origin                   |
-| `DATABASE_URL`   | local PostgreSQL on `5433`  | Database connection                      |
-| `JWT_SECRET`     | local-only fictitious value | JWT signature key; minimum 32 characters |
-| `JWT_EXPIRES_IN` | `1h`                        | Access-token lifetime                    |
-| `VITE_API_URL`   | `http://localhost:4000`     | Browser-visible API URL                  |
-| `POSTGRES_PORT`  | `5433`                      | Optional Compose host-port override      |
-| `TEST_RUN_ID`    | generated by Playwright     | Observable test-data run identifier      |
-
-`.env` is ignored. Checked-in local/CI secrets are explicitly fictitious and must never be reused in production.
+Compose waits for PostgreSQL, applies all schema and reference-data migrations once, then starts the API and web services.
 
 ## Quality commands
 
 ```powershell
 npm run db:migrate
-npm run lint
 npm run format:check
+npm run lint
 npm run typecheck
 npm run build
 npm run test:unit
 npm run test:api
+npm run test:integration
 npm run test:ui
 npm run test:smoke
 npm test
 ```
 
-`npm test` applies migrations, runs unit tests, then runs all Playwright API, integration, and UI projects. PostgreSQL must already be healthy. Playwright owns the local API/web processes and shuts them down after the run.
+The current suite contains 44 tests: 4 unit, 34 API, 5 database integration, and 1 UI test. The API smoke suite contains 8 tests covering health, authentication, plan listing, subscription creation, and current subscription retrieval.
 
-The current suite contains 19 tests: 4 unit, 13 API, 1 database integration, and 1 UI E2E test.
+## Test data and isolation
 
-## Test-data engineering
+Users and subscriptions are mutable, test-owned data. Each test creates a unique user using the run ID, `workerIndex`, and a monotonic counter. Plans are shared immutable reference data resolved by code rather than generated or mutated. There is no shared account, global truncation, or test-order dependency.
 
-`@releaseguard/test-data` creates a new user for each test with an address shaped like:
-
-```text
-test.user.<run>.<worker>.<counter>@releaseguard.test
-```
-
-The run identifier is observable, workers maintain independent counters, and every field can be overridden for negative scenarios. Tests do not use a seeded account or depend on execution order. See [Test Data Engineering](docs/test-data.md).
-
-## Security decisions
-
-- Emails are trimmed and lowercased; the database also enforces normalized, unique values.
-- bcrypt uses a work factor of 12 and a per-password salt.
-- Unknown emails and wrong passwords return the same `INVALID_CREDENTIALS` response and both perform a bcrypt comparison.
-- JWTs carry only the user ID in `sub` and expire after one hour.
-- Pino redacts password and Authorization paths; neither is logged manually.
-- Unexpected errors are logged internally and exposed only as `INTERNAL_SERVER_ERROR`.
+See [API Testing](docs/api-testing.md), [Test Data Engineering](docs/test-data.md), [Architecture](docs/architecture.md), and [Test Strategy](docs/test-strategy.md).
 
 ## Project roadmap
 
 1. SDET Foundation — complete
-2. **Authentication and Test Data Engineering — current**
-3. Subscription Domain and API Automation
-4. Framework Expansion and UI Automation
-5. Integration and Database Testing
-6. Contract Testing
-7. Advanced Quality
-8. Performance Engineering
-9. Test Observability and SDET Tooling
-10. GitHub Actions Quality Platform
-11. Portfolio Polish
+2. Authentication and Test Data Engineering — complete
+3. **Subscription Domain and API Automation — complete**
+4. UI Automation — next
 
-Future capabilities are roadmap only and are not represented as implemented.
-
-See [Architecture](docs/architecture.md) and [Test Strategy](docs/test-strategy.md) for the current engineering boundaries.
+Payments, invoices, contract testing, performance, accessibility, visual regression, custom reporting, and flaky analytics are not implemented.

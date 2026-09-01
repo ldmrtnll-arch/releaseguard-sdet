@@ -1,47 +1,57 @@
 # Test Data Engineering
 
-## Goals
+ReleaseGuard separates mutable scenario data from stable reference data so tests can run concurrently without destructive cleanup.
 
-ReleaseGuard test data must be isolated, parallel-safe, diagnosable, and reproducible from observable context. Each test creates the state it needs and no test relies on a previously seeded user.
+## Mutable per-test data
 
-## User strategy
+Users and subscriptions belong to individual tests.
 
-`@releaseguard/test-data` exports `createUserBuilder` and a convenient default `buildUser`. The contextual builder produces:
+`@releaseguard/test-data` generates users with:
 
 ```text
 test.user.<run-id>.<worker-index>.<counter>@releaseguard.test
 ```
 
-- Playwright creates one visible run ID and shares it with workers.
-- Each worker receives its own monotonically increasing counter.
-- `.test` is reserved for synthetic data and requires no external service.
-- The valid default password is artificial and can be overridden.
-- Partial overrides make invalid-email, missing-field, and password-policy scenarios readable.
+- The run ID is visible and can be supplied by CI.
+- `workerIndex` separates actual Playwright worker processes.
+- Each worker owns a monotonically increasing counter.
+- `.test` prevents accidental external delivery.
+- Explicit overrides support negative inputs without Faker or scenario factories.
 
-Providing `TEST_RUN_ID` makes the naming context explicit in CI or during diagnosis. The builder is deterministic for a given run ID, worker index, and call order; uniqueness across ordinary executions comes from Playwright's generated run ID.
+`authenticatedUser` registers and logs in a new user. `subscribedUser` builds on it only when an active Starter subscription is a genuine precondition. Both are test-scoped where state is mutable; the builder remains worker-scoped.
 
-## Fixtures and clients
+A subscription-input builder was intentionally not added because `{ planId }` has no meaningful generation behavior.
 
-The worker-scoped `userBuilder` preserves unique sequencing across tests assigned to the same process. `authApi` exposes register, login, and `/me` while preserving raw Playwright responses, so tests can deliberately inspect 4xx responses. `authenticatedUser` generates, registers, logs in, and returns the data, public user, and access token.
+## Shared reference data
 
-Assertions remain in tests. Test helpers do not convert expected HTTP failures into exceptions.
+Plans are immutable, versioned reference data:
+
+- `starter`
+- `professional`
+- `business`
+
+They are inserted by migration with deterministic UUIDs and resolved in tests by code. Specs never hardcode plan UUIDs or generate random plans. Sharing these read-only rows is safe across workers and makes the product catalog deterministic.
 
 ## Cleanup
 
-ReleaseGuard currently uses identity isolation rather than per-test deletion:
+The strategy remains append-only identity isolation:
 
-- Local tests create unique users in the developer-owned PostgreSQL volume.
-- CI provisions an exclusive PostgreSQL service and discards the job with all data.
-- The same suite can execute concurrently and repeatedly without depending on old rows.
+- Local runs create uniquely named users and their subscription history.
+- CI owns an ephemeral PostgreSQL service and discards it after the job.
+- Developers may intentionally reset only the ReleaseGuard Compose volume.
 
-This avoids cleanup races that could delete another worker's data. A future entity graph may justify transaction-aware or targeted cleanup, but Phase 2 does not introduce it prematurely. Developers can intentionally reset the local database with `docker compose down --volumes`; tests never do this automatically.
+Tests do not truncate global tables or expose reset endpoints. This avoids cross-worker cleanup races.
+
+## Failure observability
+
+Generated emails identify the run, worker, and sequence. Subscription responses expose their ID and embedded plan code, so traces and request bodies identify the scenario without ad hoc logging.
 
 ## Anti-patterns avoided
 
-- Shared or pre-seeded test accounts.
-- Execution-order dependencies.
-- Production-like hardcoded identities.
-- Uncontrolled `Math.random()` values.
-- Destructive public test endpoints.
-- Assertions hidden inside API clients or fixtures.
-- Global table truncation while parallel workers are active.
+- Shared accounts and shared mutable subscriptions.
+- Random plan generation or mutation.
+- Global database resets during parallel execution.
+- Faker for simple deterministic values.
+- Direct database mutation for business setup.
+- Assertions inside clients or fixtures.
+- Sleeps and test-order dependencies.

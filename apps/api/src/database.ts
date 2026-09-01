@@ -13,8 +13,8 @@ export type Database = {
 export function createDatabase(connectionString: string): Database {
   const pool = new Pool({
     connectionString,
-    connectionTimeoutMillis: 2_000,
-    max: 5,
+    connectionTimeoutMillis: 5_000,
+    max: 10,
   });
 
   return {

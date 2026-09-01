@@ -1,35 +1,59 @@
 # Test Strategy
 
-ReleaseGuard treats testability, data ownership, and failure diagnosis as application requirements.
+ReleaseGuard tests observable behavior at the cheapest useful layer and reserves direct persistence checks for business invariants.
 
 ## Current coverage
 
-- Unit tests cover email normalization and the behavioral contract of the user-data builder.
-- API tests cover health, readiness, registration, login, JWT-protected `/me`, validation, conflicts, normalization, and non-enumerating credential errors.
-- One database integration test proves that the persisted password is a salted bcrypt hash rather than plaintext.
-- One critical UI test preserves the Browser → Web → API health path from Phase 1.
+- Unit tests cover email normalization and the parallel-safe user builder.
+- API tests cover health, authentication, public plans, subscription positive/negative behavior, ownership isolation, and the full lifecycle.
+- Integration tests cover password hashing, plan reference data, plan-change persistence, cancellation history, and concurrent creation.
+- One UI test preserves the Browser → Web → API health path.
 
-## Test-data strategy
+## API smoke
 
-Every authentication test owns a user generated from run, worker, and counter context. Overrides produce negative inputs without scenario-specific factories. The suite never relies on a seeded account, and parallel workers do not share a mutable counter.
+`npm run test:smoke` runs eight fast API tests: liveness, readiness, register, login, `/me`, plan listing, subscription creation, and current-subscription retrieval. Negative matrices, cancellation, lifecycle, persistence, and concurrency remain regression/integration coverage.
 
-Local data is intentionally append-only because unique identities make tests independent; it can be discarded with the developer-owned Compose volume. CI uses a database exclusive to the job and discards it when the job ends. There is no public reset endpoint.
+## Lifecycle and state transitions
 
-## Smoke and regression
+Smaller tests isolate each rule. A separate `@lifecycle` scenario proves:
 
-`@smoke` covers liveness/readiness, register, login, `/me`, and the web health path. Validation, duplicate, normalization variants, invalid tokens, and security cases are regression-focused. `@security` identifies credential-enumeration, invalid-token, and password-storage risks.
+```text
+none -> Starter active -> Professional active -> cancelled -> Business active
+```
 
-## Fixture philosophy
+The historical subscription ID is retained after cancellation and the new active subscription receives a new ID.
 
-Fixtures compose one responsibility at a time. `authApi` wraps HTTP operations without assertions. `userBuilder` is worker-scoped and owns unique sequencing. `authenticatedUser` performs only register/login setup. `database` exposes a narrow persistence query for an integration assertion; it is not a general database-testing framework.
+## Concurrency
 
-## Reliability principles
+The `@concurrency` integration scenario creates one authenticated user and sends two independent subscription requests together. It does not assume which request wins. It requires statuses `201` and `409`, stable code `SUBSCRIPTION_ALREADY_ACTIVE`, and a direct database count of exactly one active row.
 
-- Keep tests deterministic, independent, parallel-safe, and behaviorally named.
-- Prefer API setup; reserve UI tests for critical user journeys.
-- Use semantic locators and public contracts rather than implementation details.
-- Do not use arbitrary sleeps or test ordering.
-- CI retries once to gather diagnostic evidence, never to redefine an unstable test as healthy.
-- Capture screenshots/video on failure and traces on first retry.
+## Database verification
 
-Contract, broader database integration, accessibility, visual, resilience, and performance layers will be introduced only with their corresponding product risks.
+Database assertions are selective:
+
+- bcrypt hash instead of plaintext;
+- exactly three deterministic plans;
+- changed `plan_id` persistence;
+- cancelled row and timestamp preservation;
+- one-active-subscription invariant after concurrent requests.
+
+All business actions occur through the API. The test database helper performs read-only verification and is not a backdoor setup layer.
+
+## Isolation and parallelism
+
+- Every mutable scenario owns a unique user and subscription state.
+- Plans are shared, immutable reference data and are never modified by tests.
+- No global reset or table truncation occurs between tests.
+- Tests use no arbitrary sleeps and do not depend on order.
+- Worker-local counters use `workerIndex`; repeat and multi-worker execution remain collision-safe.
+
+## Suite organization
+
+- `npm run test:unit` — Vitest unit tests.
+- `npm run test:api` — Playwright API project only.
+- `npm run test:integration` — persistence and concurrency project.
+- `npm run test:ui` — browser project.
+- `npm run test:smoke` — fundamental API behaviors tagged `@smoke`.
+- `npm test` — migrations, unit tests, and every Playwright project.
+
+CI retries once only to collect diagnostic evidence. Screenshots and video are retained on failure and traces on the first retry. Contract testing, performance, accessibility, and visual regression are not represented as implemented.

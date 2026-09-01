@@ -8,7 +8,12 @@ import { createUserRepository } from './auth/user-repository.js';
 import type { AppConfig } from './config.js';
 import type { Database } from './database.js';
 import { AppError } from './errors.js';
+import { createPlanRepository } from './plans/plan-repository.js';
+import { planRoutes } from './plans/routes.js';
 import { healthRoutes } from './routes/health.js';
+import { subscriptionRoutes } from './subscriptions/routes.js';
+import { createSubscriptionRepository } from './subscriptions/subscription-repository.js';
+import { createSubscriptionService } from './subscriptions/subscription-service.js';
 
 type BuildAppOptions = {
   config: AppConfig;
@@ -29,6 +34,11 @@ export async function buildApp({ config, database }: BuildAppOptions) {
     requestIdHeader: 'x-request-id',
   });
   const authService = await createAuthService(createUserRepository(database));
+  const plans = createPlanRepository(database);
+  const subscriptions = createSubscriptionService(
+    createSubscriptionRepository(database),
+    plans,
+  );
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
@@ -56,6 +66,8 @@ export async function buildApp({ config, database }: BuildAppOptions) {
     authService,
     jwtExpiresIn: config.jwtExpiresIn,
   });
+  await app.register(planRoutes, { plans });
+  await app.register(subscriptionRoutes, { subscriptions });
 
   app.addHook('onClose', async () => {
     await database.close();
