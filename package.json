@@ -1,0 +1,38 @@
+{
+  "name": "releaseguard-sdet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An SDET and Quality Engineering lab built around a controlled subscription platform.",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev": "concurrently --kill-others --names api,web --prefix-colors cyan,magenta \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm run dev --workspace @releaseguard/api",
+    "dev:web": "npm run dev --workspace @releaseguard/web",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0",
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:ui": "playwright test --project=ui",
+    "test:headed": "playwright test --project=ui --headed",
+    "test:report": "playwright show-report",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit --project tsconfig.tests.json"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^22.0.0",
+    "concurrently": "^9.0.0",
+    "eslint": "^10.9.1",
+    "globals": "^16.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.69.0"
+  }
+}
