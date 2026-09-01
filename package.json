@@ -7,18 +7,22 @@
     "node": ">=22"
   },
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "dev": "concurrently --kill-others --names api,web --prefix-colors cyan,magenta \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "npm run dev --workspace @releaseguard/api",
     "dev:web": "npm run dev --workspace @releaseguard/web",
+    "db:migrate": "npm run db:migrate --workspace @releaseguard/api",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings 0",
-    "test": "playwright test",
-    "test:api": "playwright test --project=api",
+    "test": "npm run db:migrate && npm run test:unit && playwright test",
+    "test:api": "npm run db:migrate && playwright test --project=api --project=integration",
+    "test:smoke": "npm run db:migrate && playwright test --grep @smoke",
+    "test:unit": "vitest run tests/unit",
     "test:ui": "playwright test --project=ui",
     "test:headed": "playwright test --project=ui --headed",
     "test:report": "playwright show-report",
@@ -28,11 +32,15 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.55.0",
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.0.0",
     "concurrently": "^9.0.0",
     "eslint": "^10.9.1",
     "globals": "^16.0.0",
     "prettier": "^3.0.0",
+    "pg": "^8.23.0",
     "typescript": "^5.9.0",
-    "typescript-eslint": "^8.69.0"
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^4.1.11",
+    "zod": "^4.5.4"
   }
 }

@@ -4,6 +4,7 @@ WORKDIR /workspace
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
+COPY packages/test-data/package.json packages/test-data/package.json
 RUN npm ci
 
 COPY tsconfig.base.json ./
@@ -18,6 +19,7 @@ WORKDIR /workspace
 COPY --from=build --chown=node:node /workspace/node_modules ./node_modules
 COPY --from=build --chown=node:node /workspace/apps/api/package.json ./apps/api/package.json
 COPY --from=build --chown=node:node /workspace/apps/api/dist ./apps/api/dist
+COPY --from=build --chown=node:node /workspace/apps/api/migrations ./apps/api/migrations
 
 USER node
 EXPOSE 4000
