@@ -76,7 +76,7 @@ export function App() {
       </main>
 
       <footer>
-        <p>ReleaseGuard · Phase 1</p>
+        <p>ReleaseGuard · Phase 2</p>
       </footer>
     </div>
   );

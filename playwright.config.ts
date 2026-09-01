@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const isCi = Boolean(process.env.CI);
+process.env.TEST_RUN_ID ??= `pw-${Date.now().toString(36)}-${process.pid}`;
 
 export default defineConfig({
   testDir: './tests',
@@ -29,6 +30,11 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         baseURL: 'http://localhost:5173',
       },
+    },
+    {
+      name: 'integration',
+      testDir: './tests/integration',
+      use: { baseURL: 'http://localhost:4000' },
     },
   ],
   webServer: [

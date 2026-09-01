@@ -2,118 +2,156 @@
 
 ReleaseGuard is an SDET and Quality Engineering portfolio project built around a controlled SaaS subscription platform. The application is deliberately small; the product demonstrated by this repository is the reliable, observable, and maintainable quality-engineering ecosystem around it.
 
-Phase 1 establishes a reproducible foundation: a TypeScript monorepo, Fastify API, React web app, PostgreSQL, Docker Compose, Playwright API and browser tests, and a GitHub Actions quality gate.
+Phase 2 adds a real authentication domain and a parallel-safe test-data foundation to the TypeScript monorepo established in Phase 1.
 
 ## Current architecture
 
 ```text
-Browser ──> React/Vite web ──> Fastify API ──> PostgreSQL
-   │                              ▲
-   └──── Playwright UI tests      │
-          Playwright API tests ───┘
+Browser → React/Vite web → Fastify API → PostgreSQL
+                             ├─ Auth routes
+Playwright API tests ────────┤  Auth service
+                             ├─ User repository
+Test-data builders ──────────┘
 ```
 
-The API exposes a liveness endpoint at `GET /health` and a dependency-aware readiness endpoint at `GET /health/ready`. The home page makes one liveness request and presents the observed API status. No authentication or subscription features are implemented in Phase 1.
+The web application still provides the Phase 1 health integration; a UI login experience is intentionally deferred. Authentication is currently exercised through the API.
+
+## Implemented API
+
+| Method | Endpoint                | Purpose                                |
+| ------ | ----------------------- | -------------------------------------- |
+| `GET`  | `/health`               | Process liveness                       |
+| `GET`  | `/health/ready`         | PostgreSQL-backed readiness            |
+| `POST` | `/api/v1/auth/register` | Create a user; returns the public user |
+| `POST` | `/api/v1/auth/login`    | Authenticate and issue a one-hour JWT  |
+| `GET`  | `/api/v1/auth/me`       | Return the authenticated public user   |
+
+Errors use a stable `{ "error": { "code", "message" } }` envelope. Public users never contain passwords or password hashes.
 
 ## Stack
 
-- Node.js 22+, TypeScript in strict mode, npm workspaces
-- Fastify 5 and PostgreSQL 17
+- Node.js 22+, TypeScript strict, npm workspaces
+- Fastify 5, PostgreSQL 17, SQL migrations
+- bcrypt password hashing and `@fastify/jwt`
 - React 19 and Vite 7
-- Playwright Test with Chromium
+- Playwright Test and Vitest
 - ESLint, typescript-eslint, and Prettier
 - Docker Compose and GitHub Actions
 
 ## Requirements
 
 - Node.js 22 or newer
-- npm (bundled with Node.js)
+- npm
 - Docker with Compose support
 
 No global application dependencies are required.
 
 ## Local setup
 
-1. Create local environment settings if you want to override the documented defaults:
+1. Optionally create local settings from the safe development template:
 
    ```powershell
    Copy-Item .env.example .env
    ```
 
-2. Install pinned dependencies:
+2. Install pinned dependencies and the Chromium browser:
 
    ```powershell
    npm ci
-   ```
-
-3. Install the Phase 1 browser once:
-
-   ```powershell
    npx playwright install chromium
    ```
 
-4. Start PostgreSQL:
+3. Start PostgreSQL and apply all pending migrations:
 
    ```powershell
    docker compose up -d postgres
+   npm run db:migrate
    ```
 
-5. Start the API and web application together:
+4. Start the API and web application:
 
    ```powershell
    npm run dev
    ```
 
-The web application is available at `http://localhost:5173`; the API is at `http://localhost:4000`. PostgreSQL maps host port `5433` to avoid the most common local conflict.
+The web application runs at `http://localhost:5173`, the API at `http://localhost:4000`, and PostgreSQL maps host port `5433` to avoid common local conflicts.
 
-To run the entire containerized stack instead, use `docker compose up --build -d`. This exposes the same application ports. Run `docker compose down` to stop it; add `--volumes` only when you intentionally want to delete local database data.
+For a fully containerized environment:
+
+```powershell
+docker compose up --build -d
+```
+
+Compose runs a dedicated, idempotent migration service after PostgreSQL becomes healthy and before starting the API. Use `docker compose stop` to preserve the local database, or `docker compose down --volumes` only when intentionally discarding it.
 
 ## Environment variables
 
-| Variable        | Default                    | Purpose                             |
-| --------------- | -------------------------- | ----------------------------------- |
-| `API_HOST`      | `0.0.0.0`                  | Fastify bind address                |
-| `API_PORT`      | `4000`                     | API port                            |
-| `CORS_ORIGIN`   | `http://localhost:5173`    | Allowed browser origin              |
-| `DATABASE_URL`  | local PostgreSQL on `5433` | API database connection             |
-| `VITE_API_URL`  | `http://localhost:4000`    | Browser-visible API base URL        |
-| `POSTGRES_PORT` | `5433`                     | Optional Compose host port override |
+| Variable         | Default                     | Purpose                                  |
+| ---------------- | --------------------------- | ---------------------------------------- |
+| `API_HOST`       | `0.0.0.0`                   | Fastify bind address                     |
+| `API_PORT`       | `4000`                      | API port                                 |
+| `CORS_ORIGIN`    | `http://localhost:5173`     | Allowed browser origin                   |
+| `DATABASE_URL`   | local PostgreSQL on `5433`  | Database connection                      |
+| `JWT_SECRET`     | local-only fictitious value | JWT signature key; minimum 32 characters |
+| `JWT_EXPIRES_IN` | `1h`                        | Access-token lifetime                    |
+| `VITE_API_URL`   | `http://localhost:4000`     | Browser-visible API URL                  |
+| `POSTGRES_PORT`  | `5433`                      | Optional Compose host-port override      |
+| `TEST_RUN_ID`    | generated by Playwright     | Observable test-data run identifier      |
 
-The checked-in values are development-only defaults. `.env` is ignored; `.env.example` is the configuration contract.
+`.env` is ignored. Checked-in local/CI secrets are explicitly fictitious and must never be reused in production.
 
 ## Quality commands
 
 ```powershell
+npm run db:migrate
 npm run lint
 npm run format:check
 npm run typecheck
 npm run build
+npm run test:unit
+npm run test:api
+npm run test:ui
+npm run test:smoke
 npm test
 ```
 
-`npm test` starts the API and web processes through Playwright, runs the API and UI projects, and shuts those processes down. PostgreSQL must already be healthy. Use `npm run test:api` or `npm run test:ui` for a focused project. Tests contain no fixed sleeps and do not depend on execution order.
+`npm test` applies migrations, runs unit tests, then runs all Playwright API, integration, and UI projects. PostgreSQL must already be healthy. Playwright owns the local API/web processes and shuts them down after the run.
 
-## Health semantics
+The current suite contains 19 tests: 4 unit, 13 API, 1 database integration, and 1 UI E2E test.
 
-- `GET /health` is liveness: it confirms that the API process can serve requests.
-- `GET /health/ready` is readiness: it executes a lightweight PostgreSQL query and returns `503` with a stable error shape if the dependency is unavailable.
+## Test-data engineering
 
-This distinction lets local tooling, containers, and CI diagnose an application failure separately from a dependency failure.
+`@releaseguard/test-data` creates a new user for each test with an address shaped like:
+
+```text
+test.user.<run>.<worker>.<counter>@releaseguard.test
+```
+
+The run identifier is observable, workers maintain independent counters, and every field can be overridden for negative scenarios. Tests do not use a seeded account or depend on execution order. See [Test Data Engineering](docs/test-data.md).
+
+## Security decisions
+
+- Emails are trimmed and lowercased; the database also enforces normalized, unique values.
+- bcrypt uses a work factor of 12 and a per-password salt.
+- Unknown emails and wrong passwords return the same `INVALID_CREDENTIALS` response and both perform a bcrypt comparison.
+- JWTs carry only the user ID in `sub` and expire after one hour.
+- Pino redacts password and Authorization paths; neither is logged manually.
+- Unexpected errors are logged internally and exposed only as `INTERNAL_SERVER_ERROR`.
 
 ## Project roadmap
 
-1. **SDET Foundation** — current phase
-2. Authentication and Test Data Engineering
-3. Subscription Lifecycle
-4. Framework Expansion
+1. SDET Foundation — complete
+2. **Authentication and Test Data Engineering — current**
+3. Subscription Domain and API Automation
+4. Framework Expansion and UI Automation
 5. Integration and Database Testing
 6. Contract Testing
-7. Advanced Quality (accessibility, visual, resilience)
+7. Advanced Quality
 8. Performance Engineering
 9. Test Observability and SDET Tooling
 10. GitHub Actions Quality Platform
 11. Portfolio Polish
 
-Future phases are roadmap only; their capabilities are not represented as complete today.
+Future capabilities are roadmap only and are not represented as implemented.
 
-See [the architecture notes](docs/architecture.md) and [the test strategy](docs/test-strategy.md) for the decisions behind the foundation.
+See [Architecture](docs/architecture.md) and [Test Strategy](docs/test-strategy.md) for the current engineering boundaries.

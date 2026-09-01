@@ -1,29 +1,44 @@
-# Phase 1 Architecture
+# Phase 2 Architecture
 
-ReleaseGuard is a controlled system under test. Phase 1 intentionally implements only the components needed to establish a credible development and testing foundation.
+ReleaseGuard remains a controlled system under test. Phase 2 extends the small Phase 1 foundation with the first persisted domain and reusable test-data infrastructure.
 
 ```mermaid
 flowchart LR
   Browser[Browser] --> Web[React + Vite web]
   Web -->|GET /health| API[Fastify API]
-  API -->|readiness query| DB[(PostgreSQL)]
-  PW[Playwright] -->|UI project| Browser
-  PW -->|API project| API
+  PW[Playwright API tests] --> AuthRoutes[Auth routes]
+  AuthRoutes --> AuthService[Auth service]
+  AuthService --> Hasher[bcrypt hasher]
+  AuthService --> Repository[User repository]
+  Repository --> DB[(PostgreSQL)]
+  Builder[Test-data builder] --> PW
+  PW -->|selected verification| TestDB[Test DB helper]
+  TestDB --> DB
 ```
 
-## Boundaries
+## Application boundaries
 
-- `apps/api` owns HTTP bootstrapping, environment validation, routes, and the PostgreSQL connection boundary. App construction is separate from process startup so later tests can use Fastify injection without opening a port.
-- `apps/web` owns the accessible application shell and its single health integration.
-- `tests/api` and `tests/ui` separate protocols while sharing Playwright's runner, lifecycle, and diagnostics.
-- `compose.yaml` provides a reproducible local stack. The default test workflow starts only PostgreSQL in Docker and lets Playwright own short-lived application processes.
+- `apps/api/src/auth/routes.ts` owns HTTP parsing, status codes, JWT issuance, and authentication guards.
+- `auth-service.ts` owns registration, normalization, password hashing, credential verification, and public-user conversion.
+- `user-repository.ts` is the single SQL boundary for users and translates unique-constraint violations into a domain error.
+- `migrations/` owns versioned schema changes. The runner records applied files and uses a PostgreSQL advisory transaction lock.
+- `app.ts` assembles dependencies and registers the error model before route plugins so every route inherits it.
 
-No database tables exist yet because Phase 1 has no persisted domain concept. PostgreSQL is exercised by readiness, without adding a fictitious model. Schema migrations will begin with real authentication entities in Phase 2.
+App creation remains separate from process startup. Health behavior, structured logging, `X-Request-ID`, CORS, and graceful shutdown from Phase 1 remain intact.
 
-## Operational signals
+## Test boundaries
 
-Fastify emits structured JSON logs and accepts `X-Request-ID` as its request identifier. Liveness does not depend on PostgreSQL; readiness does. Errors returned by readiness use a stable code and do not expose internal stack traces.
+- `packages/test-data` is runner-independent and owns only synthetic-data construction.
+- `tests/support/api` performs HTTP operations and parses selected critical contracts; it contains no assertions.
+- `tests/support/fixtures.ts` composes an API client, worker-scoped builder, authenticated user, and minimal database helper.
+- `tests/api` verifies public HTTP behavior; `tests/integration` uses direct database access only where persistence adds distinct confidence.
 
-## Future boundary
+## Migration lifecycle
 
-Authentication, subscription behavior, a fake payment provider, contracts, and performance tooling belong to later phases. They are omitted here to keep the initial architecture honest and small.
+Local npm development runs `npm run db:migrate` explicitly. Docker Compose uses a single-purpose migration service that completes before the API starts. GitHub Actions applies migrations once before quality gates. This avoids hiding schema changes in application startup and avoids concurrent migrations from application replicas.
+
+## Security and observability
+
+Passwords are stored only as salted bcrypt hashes. JWTs contain only `sub`; passwords and Authorization headers are configured as Pino redaction paths. Expected domain errors use stable public codes. Unexpected errors are logged with the request ID while clients receive a generic response.
+
+Subscription, plans, invoices, payment-provider, Pact, k6, accessibility, and visual tooling remain future boundaries.

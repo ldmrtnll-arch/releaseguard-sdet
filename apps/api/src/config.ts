@@ -18,6 +18,11 @@ const environmentSchema = z.object({
     .default(
       'postgresql://releaseguard:releaseguard_dev@localhost:5433/releaseguard',
     ),
+  JWT_EXPIRES_IN: z.string().min(1).default('1h'),
+  JWT_SECRET: z
+    .string()
+    .min(32)
+    .default('releaseguard-local-only-secret-change-me'),
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
     .default('development'),
@@ -27,6 +32,8 @@ export type AppConfig = {
   corsOrigin: string;
   databaseUrl: string;
   host: string;
+  jwtExpiresIn: string;
+  jwtSecret: string;
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
 };
@@ -46,6 +53,8 @@ export function loadConfig(
     corsOrigin: parsed.data.CORS_ORIGIN,
     databaseUrl: parsed.data.DATABASE_URL,
     host: parsed.data.API_HOST,
+    jwtExpiresIn: parsed.data.JWT_EXPIRES_IN,
+    jwtSecret: parsed.data.JWT_SECRET,
     nodeEnv: parsed.data.NODE_ENV,
     port: parsed.data.API_PORT,
   };
