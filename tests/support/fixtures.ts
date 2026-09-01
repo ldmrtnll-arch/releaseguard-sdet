@@ -2,12 +2,21 @@ import { test as base } from '@playwright/test';
 
 import {
   createUserBuilder,
+  planCodes,
   type UserBuilder,
   type UserTestData,
 } from '@releaseguard/test-data';
 
 import { AuthApiClient } from './api/auth-api-client';
 import { loginResponseSchema } from './api/auth-contracts';
+import { PlansApiClient } from './api/plans-api-client';
+import {
+  planListResponseSchema,
+  subscriptionResponseSchema,
+  type PlanResponse,
+  type SubscriptionResponse,
+} from './api/subscription-contracts';
+import { SubscriptionsApiClient } from './api/subscriptions-api-client';
 import { TestDatabase } from './database';
 
 type AuthenticatedUser = {
@@ -22,7 +31,15 @@ type AuthenticatedUser = {
 
 type TestFixtures = {
   authenticatedUser: AuthenticatedUser;
+  authenticatedSubscriptionsApi: SubscriptionsApiClient;
+  availablePlans: Record<
+    (typeof planCodes)[keyof typeof planCodes],
+    PlanResponse
+  >;
   authApi: AuthApiClient;
+  plansApi: PlansApiClient;
+  subscribedUser: AuthenticatedUser & { subscription: SubscriptionResponse };
+  subscriptionsApi: SubscriptionsApiClient;
 };
 
 type WorkerFixtures = {
@@ -33,6 +50,14 @@ type WorkerFixtures = {
 export const test = base.extend<TestFixtures, WorkerFixtures>({
   authApi: async ({ request }, use) => {
     await use(new AuthApiClient(request));
+  },
+
+  plansApi: async ({ request }, use) => {
+    await use(new PlansApiClient(request));
+  },
+
+  subscriptionsApi: async ({ request }, use) => {
+    await use(new SubscriptionsApiClient(request));
   },
 
   authenticatedUser: async ({ authApi, userBuilder }, use) => {
@@ -59,6 +84,62 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       data,
       user: login.user,
     });
+  },
+
+  authenticatedSubscriptionsApi: async (
+    { authenticatedUser, request },
+    use,
+  ) => {
+    await use(
+      new SubscriptionsApiClient(request, authenticatedUser.accessToken),
+    );
+  },
+
+  availablePlans: async ({ plansApi }, use) => {
+    const response = await plansApi.list();
+
+    if (response.status() !== 200) {
+      throw new Error(`Plan setup failed with status ${response.status()}`);
+    }
+
+    const listed = planListResponseSchema.parse(await response.json()).data;
+    const byCode = new Map(listed.map((plan) => [plan.code, plan]));
+
+    for (const code of Object.values(planCodes)) {
+      if (!byCode.has(code)) {
+        throw new Error(`Reference plan ${code} is unavailable`);
+      }
+    }
+
+    const starter = byCode.get(planCodes.starter);
+    const professional = byCode.get(planCodes.professional);
+    const business = byCode.get(planCodes.business);
+
+    if (!starter || !professional || !business) {
+      throw new Error('Required reference plans are unavailable');
+    }
+
+    await use({ starter, professional, business });
+  },
+
+  subscribedUser: async (
+    { authenticatedSubscriptionsApi, authenticatedUser, availablePlans },
+    use,
+  ) => {
+    const response = await authenticatedSubscriptionsApi.create({
+      planId: availablePlans.starter.id,
+    });
+
+    if (response.status() !== 201) {
+      throw new Error(
+        `Subscribed user setup failed with status ${response.status()}`,
+      );
+    }
+
+    const subscription = subscriptionResponseSchema.parse(
+      await response.json(),
+    ).data;
+    await use({ ...authenticatedUser, subscription });
   },
 
   database: [

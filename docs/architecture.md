@@ -1,44 +1,53 @@
-# Phase 2 Architecture
+# Phase 3 Architecture
 
-ReleaseGuard remains a controlled system under test. Phase 2 extends the small Phase 1 foundation with the first persisted domain and reusable test-data infrastructure.
+ReleaseGuard keeps business behavior separate from transport and persistence while remaining intentionally small.
 
 ```mermaid
-flowchart LR
-  Browser[Browser] --> Web[React + Vite web]
-  Web -->|GET /health| API[Fastify API]
-  PW[Playwright API tests] --> AuthRoutes[Auth routes]
-  AuthRoutes --> AuthService[Auth service]
-  AuthService --> Hasher[bcrypt hasher]
-  AuthService --> Repository[User repository]
-  Repository --> DB[(PostgreSQL)]
-  Builder[Test-data builder] --> PW
-  PW -->|selected verification| TestDB[Test DB helper]
-  TestDB --> DB
+flowchart TD
+  Specs[Playwright API specs] --> Clients[API clients]
+  Clients --> Routes[Fastify routes]
+  Routes --> Services[Domain services]
+  Services --> Repositories[Repositories]
+  Repositories --> DB[(PostgreSQL)]
+  Fixtures[Test-scoped fixtures] --> Specs
+  Builders[Test-data workspace] --> Fixtures
+  Specs -. selected invariants .-> DBHelper[Test DB helper]
+  DBHelper --> DB
+```
+
+```mermaid
+erDiagram
+  USERS ||--o{ SUBSCRIPTIONS : owns
+  PLANS ||--o{ SUBSCRIPTIONS : selected_by
 ```
 
 ## Application boundaries
 
-- `apps/api/src/auth/routes.ts` owns HTTP parsing, status codes, JWT issuance, and authentication guards.
-- `auth-service.ts` owns registration, normalization, password hashing, credential verification, and public-user conversion.
-- `user-repository.ts` is the single SQL boundary for users and translates unique-constraint violations into a domain error.
-- `migrations/` owns versioned schema changes. The runner records applied files and uses a PostgreSQL advisory transaction lock.
-- `app.ts` assembles dependencies and registers the error model before route plugins so every route inherits it.
+- Auth routes and service preserve registration, login, JWT verification, bcrypt hashing, and public-user serialization.
+- Plan routes expose public reads. `PlanRepository` owns deterministic active-plan queries and explicit price ordering.
+- Subscription routes parse strict input, derive ownership from JWT, and delegate rules to `SubscriptionService`.
+- `SubscriptionService` owns plan eligibility, current-state checks, same-plan conflicts, cancellation, and re-subscription behavior.
+- `SubscriptionRepository` owns parameterized SQL and maps the active-subscription unique-index conflict to a stable domain error.
+- PostgreSQL is the final authority for foreign keys, valid states, cancellation consistency, and one active subscription per user.
 
-App creation remains separate from process startup. Health behavior, structured logging, `X-Request-ID`, CORS, and graceful shutdown from Phase 1 remain intact.
+Subscription reads use a join with plan data, avoiding N+1 requests and exposing a useful public aggregate.
+
+## Data lifecycle
+
+Migrations remain explicit, ordered, transactional, and protected by the existing PostgreSQL advisory lock. `002_create_plans.sql` creates and seeds deterministic reference data. `003_create_subscriptions.sql` creates the mutable lifecycle records and constraints. Docker and CI use the existing migration entrypoint before starting or testing the API.
+
+Foreign keys use restrictive deletion behavior because users, plans, and subscription history must not be removed implicitly.
 
 ## Test boundaries
 
-- `packages/test-data` is runner-independent and owns only synthetic-data construction.
-- `tests/support/api` performs HTTP operations and parses selected critical contracts; it contains no assertions.
-- `tests/support/fixtures.ts` composes an API client, worker-scoped builder, authenticated user, and minimal database helper.
-- `tests/api` verifies public HTTP behavior; `tests/integration` uses direct database access only where persistence adds distinct confidence.
+- API clients centralize paths and Authorization headers but never assert or throw on HTTP error status.
+- Test-scoped fixtures create authenticated and subscribed state only when a test needs it.
+- The user builder stays worker-scoped and keeps `workerIndex` from Phase 2.
+- Zod schemas validate only important public response fields.
+- Direct database access is read-only and limited to invariants the public API cannot prove efficiently.
 
-## Migration lifecycle
+## Operational boundaries
 
-Local npm development runs `npm run db:migrate` explicitly. Docker Compose uses a single-purpose migration service that completes before the API starts. GitHub Actions applies migrations once before quality gates. This avoids hiding schema changes in application startup and avoids concurrent migrations from application replicas.
+Health, readiness, structured logging, request IDs, secret redaction, Docker health checks, and graceful shutdown remain unchanged. Playwright launches direct non-watch API and Vite processes so Windows test runs release ports reliably between commands.
 
-## Security and observability
-
-Passwords are stored only as salted bcrypt hashes. JWTs contain only `sub`; passwords and Authorization headers are configured as Pino redaction paths. Expected domain errors use stable public codes. Unexpected errors are logged with the request ID while clients receive a generic response.
-
-Subscription, plans, invoices, payment-provider, Pact, k6, accessibility, and visual tooling remain future boundaries.
+Subscription UI, payments, invoices, and later quality layers remain outside Phase 3.

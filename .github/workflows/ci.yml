@@ -67,8 +67,17 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run unit, API, integration, and UI tests
-        run: npm test
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Run API tests
+        run: npm run test:api
+
+      - name: Run database integration tests
+        run: npm run test:integration
+
+      - name: Run UI tests
+        run: npm run test:ui
 
       - name: Upload Playwright diagnostics
         if: failure()

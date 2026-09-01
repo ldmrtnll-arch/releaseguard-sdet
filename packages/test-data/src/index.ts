@@ -39,3 +39,11 @@ export function createUserBuilder({
 }
 
 export const buildUser = createUserBuilder();
+
+export const planCodes = {
+  business: 'business',
+  professional: 'professional',
+  starter: 'starter',
+} as const;
+
+export type PlanCode = (typeof planCodes)[keyof typeof planCodes];

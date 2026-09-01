@@ -39,7 +39,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run dev:api',
+      command: 'node --import tsx apps/api/src/server.ts',
       reuseExistingServer: !isCi,
       stderr: 'pipe',
       stdout: 'pipe',
@@ -47,7 +47,7 @@ export default defineConfig({
       url: 'http://localhost:4000/health',
     },
     {
-      command: 'npm run dev:web',
+      command: 'node node_modules/vite/bin/vite.js apps/web --host 0.0.0.0',
       reuseExistingServer: !isCi,
       stderr: 'pipe',
       stdout: 'pipe',
