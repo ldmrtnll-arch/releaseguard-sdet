@@ -4,6 +4,7 @@ WORKDIR /workspace
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
+COPY apps/payment-provider/package.json apps/payment-provider/package.json
 COPY packages/test-data/package.json packages/test-data/package.json
 RUN npm ci
 

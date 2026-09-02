@@ -26,6 +26,18 @@ const environmentSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
     .default('development'),
+  ENABLE_TEST_CONTROLS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  PAYMENT_PROVIDER_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(3)
+    .default(2),
+  PAYMENT_PROVIDER_TIMEOUT_MS: z.coerce.number().int().positive().default(250),
+  PAYMENT_PROVIDER_URL: z.string().url().default('http://localhost:4100'),
 });
 
 export type AppConfig = {
@@ -36,6 +48,10 @@ export type AppConfig = {
   jwtSecret: string;
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
+  enableTestControls: boolean;
+  paymentProviderMaxAttempts: number;
+  paymentProviderTimeoutMs: number;
+  paymentProviderUrl: string;
 };
 
 export function loadConfig(
@@ -57,5 +73,10 @@ export function loadConfig(
     jwtSecret: parsed.data.JWT_SECRET,
     nodeEnv: parsed.data.NODE_ENV,
     port: parsed.data.API_PORT,
+    enableTestControls:
+      parsed.data.ENABLE_TEST_CONTROLS && parsed.data.NODE_ENV !== 'production',
+    paymentProviderMaxAttempts: parsed.data.PAYMENT_PROVIDER_MAX_ATTEMPTS,
+    paymentProviderTimeoutMs: parsed.data.PAYMENT_PROVIDER_TIMEOUT_MS,
+    paymentProviderUrl: parsed.data.PAYMENT_PROVIDER_URL,
   };
 }

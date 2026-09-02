@@ -8,7 +8,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: isCi,
   retries: isCi ? 1 : 0,
-  workers: isCi ? 2 : undefined,
+  workers: isCi ? 2 : 4,
   reporter: isCi
     ? [['line'], ['html', { open: 'never' }]]
     : [['list'], ['html', { open: 'never' }]],
@@ -18,6 +18,11 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   projects: [
+    {
+      name: 'payment-provider',
+      testDir: './tests/provider',
+      use: { baseURL: 'http://localhost:4100' },
+    },
     {
       name: 'api',
       testDir: './tests/api',
@@ -57,7 +62,19 @@ export default defineConfig({
   ],
   webServer: [
     {
+      command: 'node --import tsx apps/payment-provider/src/server.ts',
+      reuseExistingServer: !isCi,
+      stderr: 'pipe',
+      stdout: 'pipe',
+      timeout: 30_000,
+      url: 'http://localhost:4100/health',
+    },
+    {
       command: 'node --import tsx apps/api/src/server.ts',
+      env: {
+        ENABLE_TEST_CONTROLS: 'true',
+        PAYMENT_PROVIDER_URL: 'http://localhost:4100',
+      },
       reuseExistingServer: !isCi,
       stderr: 'pipe',
       stdout: 'pipe',

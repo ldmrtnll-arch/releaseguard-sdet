@@ -1,5 +1,6 @@
 import type { APIRequestContext, APIResponse } from '@playwright/test';
 
+import type { PaymentScenario } from './payment-provider-api-client';
 import { testApiUrl } from './urls';
 
 export type SubscriptionRequest = {
@@ -13,19 +14,42 @@ export class SubscriptionsApiClient {
     private readonly accessToken?: string,
   ) {}
 
-  private options(data?: SubscriptionRequest) {
+  private options(
+    data?: SubscriptionRequest,
+    controls?: {
+      idempotencyKey?: string;
+      paymentScenario?: PaymentScenario;
+      requestId?: string;
+    },
+  ) {
     return {
       data,
-      headers: this.accessToken
-        ? { authorization: `Bearer ${this.accessToken}` }
-        : undefined,
+      headers: {
+        ...(this.accessToken
+          ? { authorization: `Bearer ${this.accessToken}` }
+          : {}),
+        ...(controls?.idempotencyKey
+          ? { 'idempotency-key': controls.idempotencyKey }
+          : {}),
+        ...(controls?.paymentScenario
+          ? { 'x-test-payment-scenario': controls.paymentScenario }
+          : {}),
+        ...(controls?.requestId ? { 'x-request-id': controls.requestId } : {}),
+      },
     };
   }
 
-  create(input: SubscriptionRequest): Promise<APIResponse> {
+  create(
+    input: SubscriptionRequest,
+    controls?: {
+      idempotencyKey?: string;
+      paymentScenario?: PaymentScenario;
+      requestId?: string;
+    },
+  ): Promise<APIResponse> {
     return this.request.post(
       `${testApiUrl}/api/v1/subscriptions`,
-      this.options(input),
+      this.options(input, controls),
     );
   }
 

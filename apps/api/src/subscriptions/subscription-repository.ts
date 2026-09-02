@@ -1,6 +1,6 @@
 import { DatabaseError } from 'pg';
 
-import type { Database } from '../database.js';
+import type { Database, QueryExecutor } from '../database.js';
 import { SubscriptionAlreadyActiveError } from '../errors.js';
 import type { StoredSubscription } from './subscription.js';
 
@@ -10,14 +10,22 @@ export type SubscriptionRepository = {
     userId: string,
     planId: string,
   ) => Promise<StoredSubscription | undefined>;
-  createActive: (input: {
-    id: string;
-    planId: string;
-    userId: string;
-  }) => Promise<StoredSubscription>;
+  createActive: (
+    input: {
+      id: string;
+      planId: string;
+      userId: string;
+    },
+    executor?: QueryExecutor,
+  ) => Promise<StoredSubscription>;
   findCurrentByUser: (
     userId: string,
+    executor?: QueryExecutor,
   ) => Promise<StoredSubscription | undefined>;
+  lockCreationForUser: (
+    userId: string,
+    transaction: QueryExecutor,
+  ) => Promise<void>;
 };
 
 const subscriptionColumns = `
@@ -42,8 +50,8 @@ export function createSubscriptionRepository(
   database: Database,
 ): SubscriptionRepository {
   return {
-    async findCurrentByUser(userId) {
-      const result = await database.query<StoredSubscription>(
+    async findCurrentByUser(userId, executor = database) {
+      const result = await executor.query<StoredSubscription>(
         `SELECT ${subscriptionColumns}
          FROM subscriptions s
          JOIN plans p ON p.id = s.plan_id
@@ -54,9 +62,9 @@ export function createSubscriptionRepository(
       return result.rows[0];
     },
 
-    async createActive(input) {
+    async createActive(input, executor = database) {
       try {
-        const result = await database.query<StoredSubscription>(
+        const result = await executor.query<StoredSubscription>(
           `WITH inserted AS (
              INSERT INTO subscriptions (id, user_id, plan_id, status)
              VALUES ($1, $2, $3, 'active')
@@ -85,6 +93,13 @@ export function createSubscriptionRepository(
 
         throw error;
       }
+    },
+
+    async lockCreationForUser(userId, transaction) {
+      await transaction.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [userId],
+      );
     },
 
     async changeCurrentPlan(userId, planId) {

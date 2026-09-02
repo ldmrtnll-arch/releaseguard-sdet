@@ -1,8 +1,10 @@
 import { test as base, type Page } from '@playwright/test';
 
 import {
+  createPaymentKeyBuilder,
   createUserBuilder,
   planCodes,
+  type PaymentKeyBuilder,
   type UserBuilder,
   type UserTestData,
 } from '@releaseguard/test-data';
@@ -10,6 +12,7 @@ import {
 import { AuthApiClient } from './api/auth-api-client';
 import { loginResponseSchema } from './api/auth-contracts';
 import { PlansApiClient } from './api/plans-api-client';
+import { PaymentProviderApiClient } from './api/payment-provider-api-client';
 import {
   planListResponseSchema,
   subscriptionResponseSchema,
@@ -43,6 +46,7 @@ type TestFixtures = {
   >;
   authApi: AuthApiClient;
   plansApi: PlansApiClient;
+  paymentProviderApi: PaymentProviderApiClient;
   subscribedUser: AuthenticatedUser & { subscription: SubscriptionResponse };
   subscribedPage: AuthenticatedBrowser & {
     subscription: SubscriptionResponse;
@@ -52,6 +56,7 @@ type TestFixtures = {
 
 type WorkerFixtures = {
   database: TestDatabase;
+  paymentKeyBuilder: PaymentKeyBuilder;
   userBuilder: UserBuilder;
 };
 
@@ -62,6 +67,10 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 
   plansApi: async ({ request }, use) => {
     await use(new PlansApiClient(request));
+  },
+
+  paymentProviderApi: async ({ request }, use) => {
+    await use(new PaymentProviderApiClient(request));
   },
 
   subscriptionsApi: async ({ request }, use) => {
@@ -195,6 +204,19 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       void browserName;
       await use(
         createUserBuilder({
+          runId: process.env.TEST_RUN_ID,
+          workerIndex: workerInfo.workerIndex,
+        }),
+      );
+    },
+    { scope: 'worker' },
+  ],
+
+  paymentKeyBuilder: [
+    async ({ browserName }, use, workerInfo) => {
+      void browserName;
+      await use(
+        createPaymentKeyBuilder({
           runId: process.env.TEST_RUN_ID,
           workerIndex: workerInfo.workerIndex,
         }),

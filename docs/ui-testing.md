@@ -2,6 +2,8 @@
 
 ReleaseGuard's browser suite validates the real React application against the real Fastify API and PostgreSQL database. It does not mock network responses, use fixed accounts, or prepare business state through direct database writes.
 
+Subscription journeys also cross the real payment-service HTTP boundary. The provider's deterministic default is `approved`, so browser tests remain focused on UI behavior; decline, retry, timeout, and idempotency stay in the cheaper provider and integration layers.
+
 ## Philosophy
 
 Browser tests are reserved for journeys where navigation, accessible interaction, browser storage, and frontend/API integration matter together. Detailed validation, concurrency, and persistence rules remain at the faster API and integration layers.

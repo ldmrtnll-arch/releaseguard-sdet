@@ -33,7 +33,9 @@ jobs:
     env:
       CI: true
       DATABASE_URL: postgresql://releaseguard:releaseguard_ci@127.0.0.1:5432/releaseguard
+      ENABLE_TEST_CONTROLS: true
       JWT_SECRET: releaseguard-ci-only-secret-not-for-production
+      PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
       TEST_RUN_ID: gh-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
@@ -66,6 +68,9 @@ jobs:
 
       - name: Run unit tests
         run: npm run test:unit
+
+      - name: Run payment provider tests
+        run: npm run test:provider
 
       - name: Run API tests
         run: npm run test:api
@@ -107,7 +112,9 @@ jobs:
     env:
       CI: true
       DATABASE_URL: postgresql://releaseguard:releaseguard_ci@127.0.0.1:5432/releaseguard
+      ENABLE_TEST_CONTROLS: true
       JWT_SECRET: releaseguard-ci-only-secret-not-for-production
+      PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
       TEST_RUN_ID: gh-ui-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
@@ -167,7 +174,9 @@ jobs:
     env:
       CI: true
       DATABASE_URL: postgresql://releaseguard:releaseguard_ci@127.0.0.1:5432/releaseguard
+      ENABLE_TEST_CONTROLS: true
       JWT_SECRET: releaseguard-ci-only-secret-not-for-production
+      PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
       TEST_RUN_ID: gh-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:

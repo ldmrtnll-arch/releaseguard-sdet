@@ -47,3 +47,18 @@ export const planCodes = {
 } as const;
 
 export type PlanCode = (typeof planCodes)[keyof typeof planCodes];
+
+export type PaymentKeyBuilder = () => string;
+
+export function createPaymentKeyBuilder({
+  runId = process.env.TEST_RUN_ID ?? `local-${process.pid}`,
+  workerIndex = 0,
+}: UserBuilderContext = {}): PaymentKeyBuilder {
+  let counter = 0;
+  const safeRunId = identifier(runId);
+
+  return () => {
+    counter += 1;
+    return `payment.${safeRunId}.${workerIndex}.${counter}`;
+  };
+}
