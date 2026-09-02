@@ -4,7 +4,7 @@ ReleaseGuard separates mutable scenario data from stable reference data so tests
 
 ## Mutable per-test data
 
-Users and subscriptions belong to individual tests.
+Users, subscriptions, and payment idempotency keys belong to individual tests.
 
 `@releaseguard/test-data` generates users with:
 
@@ -23,6 +23,14 @@ test.user.<run-id>.<worker-index>.<counter>@releaseguard.test
 Browser storage state is deliberately not used for authentication because Playwright storage state does not persist `sessionStorage`. An initialization script is also avoided so logout tests cannot accidentally have the token injected again on navigation.
 
 A subscription-input builder was intentionally not added because `{ planId }` has no meaningful generation behavior.
+
+The worker-scoped payment-key builder emits:
+
+```text
+payment.<run-id>.<worker-index>.<counter>
+```
+
+Retries deliberately reuse that key; separate logical payment attempts receive new keys. This makes replay and concurrency assertions deterministic without globally clearing provider state.
 
 ## Shared reference data
 
@@ -46,7 +54,7 @@ Tests do not truncate global tables or expose reset endpoints. This avoids cross
 
 ## Failure observability
 
-Generated emails identify the run, worker, and sequence. Subscription responses expose their ID and embedded plan code, so traces and request bodies identify the scenario without ad hoc logging.
+Generated emails and payment keys identify the run, worker, and sequence. Subscription responses expose their ID and embedded plan code, while provider inspection exposes attempts and correlated request IDs.
 
 ## Anti-patterns avoided
 

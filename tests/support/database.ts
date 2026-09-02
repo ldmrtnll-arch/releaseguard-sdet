@@ -16,6 +16,16 @@ export type StoredSubscription = {
   userId: string;
 };
 
+export type StoredPayment = {
+  amountCents: number;
+  currency: 'USD';
+  idempotencyKey: string;
+  providerPaymentId: string;
+  status: 'approved';
+  subscriptionId: string;
+  userId: string;
+};
+
 export class TestDatabase {
   private readonly pool = new Pool({
     connectionString: process.env.DATABASE_URL ?? defaultDatabaseUrl,
@@ -77,6 +87,37 @@ export class TestDatabase {
     );
 
     return result.rows;
+  }
+
+  async countApprovedPaymentsForUser(userId: string): Promise<number> {
+    const result = await this.pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM payments
+       WHERE user_id = $1 AND status = 'approved'`,
+      [userId],
+    );
+
+    return Number(result.rows[0]?.count ?? 0);
+  }
+
+  async findPaymentBySubscription(
+    subscriptionId: string,
+  ): Promise<StoredPayment | undefined> {
+    const result = await this.pool.query<StoredPayment>(
+      `SELECT
+         user_id AS "userId",
+         subscription_id AS "subscriptionId",
+         provider_payment_id AS "providerPaymentId",
+         idempotency_key AS "idempotencyKey",
+         amount_cents AS "amountCents",
+         currency,
+         status
+       FROM payments
+       WHERE subscription_id = $1`,
+      [subscriptionId],
+    );
+
+    return result.rows[0];
   }
 
   async close(): Promise<void> {

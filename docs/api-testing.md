@@ -1,6 +1,6 @@
 # API Testing in ReleaseGuard
 
-The Phase 3 framework distinguishes endpoint calls from API Quality Engineering by making ownership, state, contracts, negative behavior, persistence, and concurrency explicit.
+The framework distinguishes endpoint calls from API Quality Engineering by making ownership, state, contracts, negative behavior, persistence, concurrency, and external-service behavior explicit.
 
 ## Layering
 
@@ -10,7 +10,7 @@ Specs -> API clients -> Fastify routes -> domain services -> repositories -> Pos
    \-> selective read-only DB helper
 ```
 
-- `AuthApiClient`, `PlansApiClient`, and `SubscriptionsApiClient` centralize paths, payloads, and optional Bearer headers.
+- `AuthApiClient`, `PlansApiClient`, and `SubscriptionsApiClient` centralize paths, payloads, optional Bearer headers, and payment test controls. `PaymentProviderApiClient` addresses the independent provider directly.
 - Clients return raw Playwright responses. A 4xx response is testable data, not an exception.
 - Fixtures compose users, authentication, immutable plan lookup, and optional subscribed state.
 - Specs own status, content-type, body, contract, and stable error-code assertions.
@@ -47,6 +47,8 @@ This avoids coupling every test to storage while still testing the database guar
 ## Concurrency
 
 Two create requests are issued concurrently for the same authenticated user. The test accepts either request as the winner, expects one `201` and one `409`, then verifies exactly one active database row. The application maps PostgreSQL unique violation `23505` for the named partial index to `SUBSCRIPTION_ALREADY_ACTIVE`.
+
+Phase 5 also verifies one approved database payment and one provider authorization. The API takes a transaction-level advisory lock before its active-state check and external authorization, preventing two concurrent requests for the same user from both charging.
 
 ## Anti-patterns avoided
 

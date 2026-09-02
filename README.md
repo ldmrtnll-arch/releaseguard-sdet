@@ -2,19 +2,20 @@
 
 ReleaseGuard is an SDET and Quality Engineering portfolio project built around a controlled SaaS subscription platform. The application is deliberately small; its purpose is to demonstrate reliable, observable, and maintainable quality engineering around a real domain.
 
-Phase 4 adds the complete browser experience and a maintainable UI automation layer to the authentication, subscription domain, and API foundation from the previous phases.
+Phase 5 adds a deterministic external payment provider and integration-testing layer to the authentication, subscription, API, and browser foundations from previous phases.
 
 ## Current architecture
 
 ```text
 Browser -> React/Vite web -> Fastify API -> Services -> Repositories -> PostgreSQL
+                                      \-> HTTP payment client -> Fake Payment Provider
 Playwright API tests -> API clients -> Fastify API
                          Fixtures -> test-scoped users and subscriptions
                          DB helper -> selected persistence invariants
 Playwright UI tests -> Page Objects -> real browser -> React -> real API
 ```
 
-The React application provides registration, login, session restoration, public plans, protected subscription management, logout, and responsive loading/error states. Browser automation exercises these screens against the real API without request mocking.
+The React application provides registration, login, session restoration, public plans, protected subscription management, logout, and responsive loading/error states. Browser automation exercises these screens against the real API without request mocking. New subscriptions are authorized against an independent deterministic provider before the subscription and approved payment are persisted atomically.
 
 ## Implemented API
 
@@ -33,6 +34,8 @@ The React application provides registration, login, session restoration, public 
 | `DELETE` | `/api/v1/subscriptions/current` | Bearer JWT     | Cancel while preserving subscription history |
 
 New domain responses use a `{ "data": ... }` envelope. Errors use `{ "error": { "code", "message" } }`. Subscription ownership always comes from the JWT `sub`; request bodies cannot select a user.
+
+The payment provider exposes `GET /health`, `POST /payments/authorize`, and the test inspection route `GET /__test/state/:key` on port `4100`. Subscription creation accepts an optional `Idempotency-Key`. Payment declines return `402`; exhausted provider failures return `503`; exhausted timeouts return `504`.
 
 ## Plans and money
 
@@ -68,7 +71,7 @@ npm run db:migrate
 npm run dev
 ```
 
-The web application runs at `http://localhost:5173`, the API at `http://localhost:4000`, and PostgreSQL maps host port `5433`.
+The web application runs at `http://localhost:5173`, the API at `http://localhost:4000`, the payment provider at `http://localhost:4100`, and PostgreSQL maps host port `5433`.
 
 For the containerized stack:
 
@@ -87,6 +90,7 @@ npm run lint
 npm run typecheck
 npm run build
 npm run test:unit
+npm run test:provider
 npm run test:api
 npm run test:integration
 npm run test:ui
@@ -98,19 +102,20 @@ npm run test:smoke
 npm test
 ```
 
-The current suite contains 59 tests: 4 unit, 34 API, 5 database integration, and 16 Chromium UI tests. Four browser smoke scenarios also run on Firefox and WebKit. The default `npm test` runs the full Chromium path; cross-browser coverage stays explicit and intentionally small.
+The current suite contains 82 tests: 10 unit, 10 payment-provider, 34 API, 12 integration, and 16 Chromium UI tests. Four browser smoke scenarios also run on Firefox and WebKit. The default `npm test` runs the full provider/API/integration/Chromium path; cross-browser coverage stays explicit and intentionally small.
 
 ## Test data and isolation
 
-Users and subscriptions are mutable, test-owned data. Each test creates a unique user using the run ID, `workerIndex`, and a monotonic counter. Plans are shared immutable reference data resolved by code rather than generated or mutated. There is no shared account, global truncation, or test-order dependency.
+Users, subscriptions, and payment keys are mutable, test-owned data. Each test creates unique values using the run ID, `workerIndex`, and a monotonic counter. Plans are shared immutable reference data resolved by code rather than generated or mutated. There is no shared account, global truncation, or test-order dependency.
 
-See [UI Testing](docs/ui-testing.md), [API Testing](docs/api-testing.md), [Test Data Engineering](docs/test-data.md), [Architecture](docs/architecture.md), and [Test Strategy](docs/test-strategy.md).
+See [Payment Integration Testing](docs/integration-testing.md), [UI Testing](docs/ui-testing.md), [API Testing](docs/api-testing.md), [Test Data Engineering](docs/test-data.md), [Architecture](docs/architecture.md), and [Test Strategy](docs/test-strategy.md).
 
 ## Project roadmap
 
 1. SDET Foundation — complete
 2. Authentication and Test Data Engineering — complete
 3. Subscription Domain and API Automation — complete
-4. **UI Automation — complete**
+4. UI Automation — complete
+5. **Payment Provider and Integration Testing — complete**
 
-Payments, invoices, contract testing, performance, dedicated accessibility auditing, visual regression, custom reporting, and flaky analytics are not implemented.
+Invoices, contract testing, performance, dedicated accessibility auditing, visual regression, custom reporting, and flaky analytics are not implemented.

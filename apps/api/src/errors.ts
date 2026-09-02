@@ -62,3 +62,25 @@ export class SubscriptionAlreadyOnPlanError extends AppError {
     );
   }
 }
+
+export class PaymentDeclinedError extends AppError {
+  constructor() {
+    super('PAYMENT_DECLINED', 'The payment was declined', 402);
+  }
+}
+
+export class PaymentProviderUnavailableAppError extends AppError {
+  constructor() {
+    super(
+      'PAYMENT_PROVIDER_UNAVAILABLE',
+      'The payment provider is temporarily unavailable',
+      503,
+    );
+  }
+}
+
+export class PaymentProviderTimeoutAppError extends AppError {
+  constructor() {
+    super('PAYMENT_PROVIDER_TIMEOUT', 'The payment provider timed out', 504);
+  }
+}

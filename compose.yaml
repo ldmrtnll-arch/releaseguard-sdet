@@ -31,6 +31,30 @@ services:
       postgres:
         condition: service_healthy
 
+  payment-provider:
+    build:
+      context: .
+      dockerfile: apps/payment-provider/Dockerfile
+    environment:
+      PAYMENT_PROVIDER_HOST: 0.0.0.0
+      PAYMENT_PROVIDER_PORT: 4100
+      PAYMENT_SLOW_DELAY_MS: ${PAYMENT_SLOW_DELAY_MS:-100}
+      PAYMENT_TIMEOUT_DELAY_MS: ${PAYMENT_TIMEOUT_DELAY_MS:-650}
+    ports:
+      - '${PAYMENT_PROVIDER_PORT:-4100}:4100'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4100/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
   api:
     build:
       context: .
@@ -42,7 +66,11 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-releaseguard}:${POSTGRES_PASSWORD:-releaseguard_dev}@postgres:5432/${POSTGRES_DB:-releaseguard}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
       JWT_SECRET: ${JWT_SECRET:-releaseguard-container-only-secret-change-me}
-      NODE_ENV: production
+      ENABLE_TEST_CONTROLS: ${ENABLE_TEST_CONTROLS:-true}
+      NODE_ENV: development
+      PAYMENT_PROVIDER_MAX_ATTEMPTS: ${PAYMENT_PROVIDER_MAX_ATTEMPTS:-2}
+      PAYMENT_PROVIDER_TIMEOUT_MS: ${PAYMENT_PROVIDER_TIMEOUT_MS:-250}
+      PAYMENT_PROVIDER_URL: http://payment-provider:4100
     ports:
       - '${API_PORT:-4000}:4000'
     depends_on:
@@ -50,6 +78,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      payment-provider:
+        condition: service_healthy
     healthcheck:
       test:
         [

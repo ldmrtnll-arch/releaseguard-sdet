@@ -1,4 +1,5 @@
 import { errorResponseSchema } from '../support/api/auth-contracts';
+import { paymentInspectionSchema } from '../support/api/payment-contracts';
 import { expect, test } from '../support/fixtures';
 
 test.describe('Subscription persistence @integration @subscription', () => {
@@ -61,14 +62,20 @@ test.describe('Subscription persistence @integration @subscription', () => {
     authenticatedUser,
     availablePlans,
     database,
+    paymentKeyBuilder,
+    paymentProviderApi,
   }) => {
+    const starterKey = paymentKeyBuilder();
+    const professionalKey = paymentKeyBuilder();
     const outcomes = await Promise.allSettled([
-      authenticatedSubscriptionsApi.create({
-        planId: availablePlans.starter.id,
-      }),
-      authenticatedSubscriptionsApi.create({
-        planId: availablePlans.professional.id,
-      }),
+      authenticatedSubscriptionsApi.create(
+        { planId: availablePlans.starter.id },
+        { idempotencyKey: starterKey },
+      ),
+      authenticatedSubscriptionsApi.create(
+        { planId: availablePlans.professional.id },
+        { idempotencyKey: professionalKey },
+      ),
     ]);
     const responses = outcomes.flatMap((outcome) =>
       outcome.status === 'fulfilled' ? [outcome.value] : [],
@@ -77,6 +84,17 @@ test.describe('Subscription persistence @integration @subscription', () => {
     const conflict = responses.find((response) => response.status() === 409);
     const activeCount = await database.countActiveSubscriptions(
       authenticatedUser.user.id,
+    );
+    const paymentCount = await database.countApprovedPaymentsForUser(
+      authenticatedUser.user.id,
+    );
+    const providerInspections = await Promise.all(
+      [starterKey, professionalKey].map(async (key) => {
+        const response = await paymentProviderApi.inspection(key);
+        return response.status() === 200
+          ? [paymentInspectionSchema.parse(await response.json())]
+          : [];
+      }),
     );
 
     expect(
@@ -91,5 +109,12 @@ test.describe('Subscription persistence @integration @subscription', () => {
       'SUBSCRIPTION_ALREADY_ACTIVE',
     );
     expect(activeCount, `active subscription count: ${activeCount}`).toBe(1);
+    expect(paymentCount, `approved payment count: ${paymentCount}`).toBe(1);
+    expect(providerInspections.flat()).toHaveLength(1);
+    expect(providerInspections.flat()[0]).toMatchObject({
+      attempts: 1,
+      logicalPayments: 1,
+      status: 'approved',
+    });
   });
 });

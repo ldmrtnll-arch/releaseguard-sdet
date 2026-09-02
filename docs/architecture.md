@@ -1,4 +1,4 @@
-# Phase 4 Architecture
+# Phase 5 Architecture
 
 ReleaseGuard keeps business behavior separate from transport and persistence while remaining intentionally small.
 
@@ -10,6 +10,8 @@ flowchart TD
   Clients --> Routes[Fastify routes]
   Routes --> Services[Domain services]
   Services --> Repositories[Repositories]
+  Services --> PaymentClient[Payment HTTP client]
+  PaymentClient --> Provider[Fake Payment Provider]
   Repositories --> DB[(PostgreSQL)]
   Fixtures[Test-scoped fixtures] --> Specs
   Builders[Test-data workspace] --> Fixtures
@@ -24,6 +26,8 @@ flowchart TD
 erDiagram
   USERS ||--o{ SUBSCRIPTIONS : owns
   PLANS ||--o{ SUBSCRIPTIONS : selected_by
+  USERS ||--o{ PAYMENTS : owns
+  SUBSCRIPTIONS ||--|| PAYMENTS : authorized_by
 ```
 
 ## Application boundaries
@@ -36,6 +40,9 @@ erDiagram
 - Plan routes expose public reads. `PlanRepository` owns deterministic active-plan queries and explicit price ordering.
 - Subscription routes parse strict input, derive ownership from JWT, and delegate rules to `SubscriptionService`.
 - `SubscriptionService` owns plan eligibility, current-state checks, same-plan conflicts, cancellation, and re-subscription behavior.
+- For creation, `SubscriptionService` uses the plan's stored USD price, a user-scoped advisory lock, and the payment client before atomically persisting the subscription and payment.
+- The payment client owns the 250 ms per-attempt timeout, maximum of two attempts, technical-only retry policy, stable idempotency key, and request-ID propagation.
+- The independent fake provider owns deterministic failure scenarios, payload validation, idempotent replay/conflict behavior, and a read-only test inspection surface.
 - `SubscriptionRepository` owns parameterized SQL and maps the active-subscription unique-index conflict to a stable domain error.
 - PostgreSQL is the final authority for foreign keys, valid states, cancellation consistency, and one active subscription per user.
 
@@ -43,7 +50,7 @@ Subscription reads use a join with plan data, avoiding N+1 requests and exposing
 
 ## Data lifecycle
 
-Migrations remain explicit, ordered, transactional, and protected by the existing PostgreSQL advisory lock. `002_create_plans.sql` creates and seeds deterministic reference data. `003_create_subscriptions.sql` creates the mutable lifecycle records and constraints. Docker and CI use the existing migration entrypoint before starting or testing the API.
+Migrations remain explicit, ordered, transactional, and protected by the existing PostgreSQL advisory lock. `002_create_plans.sql` creates and seeds deterministic reference data. `003_create_subscriptions.sql` creates lifecycle records. `004_create_payments.sql` records approved authorizations with unique provider, subscription, and idempotency references. Docker and CI use the existing migration entrypoint before starting or testing the API.
 
 Foreign keys use restrictive deletion behavior because users, plans, and subscription history must not be removed implicitly.
 
@@ -61,4 +68,4 @@ Foreign keys use restrictive deletion behavior because users, plans, and subscri
 
 Health, readiness, structured logging, request IDs, secret redaction, Docker health checks, and graceful shutdown remain unchanged. Playwright launches direct non-watch API and Vite processes so Windows test runs release ports reliably between commands.
 
-Payments, invoices, and later quality layers remain outside Phase 4.
+The local database transaction cannot include the provider's HTTP operation. After an exhausted timeout, local rows are rolled back while the external result may remain unknown; reconciliation is intentionally deferred. Invoices and later quality layers remain outside Phase 5.

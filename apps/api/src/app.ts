@@ -9,6 +9,8 @@ import type { AppConfig } from './config.js';
 import type { Database } from './database.js';
 import { AppError } from './errors.js';
 import { createPlanRepository } from './plans/plan-repository.js';
+import { createPaymentRepository } from './payments/payment-repository.js';
+import { createPaymentProviderClient } from './payments/payment-provider-client.js';
 import { planRoutes } from './plans/routes.js';
 import { healthRoutes } from './routes/health.js';
 import { subscriptionRoutes } from './subscriptions/routes.js';
@@ -35,9 +37,18 @@ export async function buildApp({ config, database }: BuildAppOptions) {
   });
   const authService = await createAuthService(createUserRepository(database));
   const plans = createPlanRepository(database);
+  const payments = createPaymentRepository();
+  const paymentProvider = createPaymentProviderClient({
+    maxAttempts: config.paymentProviderMaxAttempts,
+    timeoutMs: config.paymentProviderTimeoutMs,
+    url: config.paymentProviderUrl,
+  });
   const subscriptions = createSubscriptionService(
+    database,
     createSubscriptionRepository(database),
     plans,
+    payments,
+    paymentProvider,
   );
 
   app.setErrorHandler((error, request, reply) => {
@@ -68,7 +79,10 @@ export async function buildApp({ config, database }: BuildAppOptions) {
     jwtExpiresIn: config.jwtExpiresIn,
   });
   await app.register(planRoutes, { plans });
-  await app.register(subscriptionRoutes, { subscriptions });
+  await app.register(subscriptionRoutes, {
+    enableTestControls: config.enableTestControls,
+    subscriptions,
+  });
 
   app.addHook('onClose', async () => {
     await database.close();

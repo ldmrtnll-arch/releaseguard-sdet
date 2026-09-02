@@ -4,9 +4,10 @@ ReleaseGuard tests observable behavior at the cheapest useful layer and reserves
 
 ## Current coverage
 
-- Unit tests cover email normalization and the parallel-safe user builder.
+- Unit tests cover email normalization, parallel-safe user and payment-key builders, retry classification, and production test-control safety.
+- Provider tests cover its HTTP contract, deterministic scenarios, idempotency, and concurrency.
 - API tests cover health, authentication, public plans, subscription positive/negative behavior, ownership isolation, and the full lifecycle.
-- Integration tests cover password hashing, plan reference data, plan-change persistence, cancellation history, and concurrent creation.
+- Integration tests cover password hashing, reference data, subscription history, real provider calls, retry/timeout behavior, approved-payment persistence, and concurrent creation without a double charge.
 - Chromium UI tests cover registration, login, invalid authentication, route protection, session restoration, plan display, subscription creation/change/cancellation/re-subscription, and logout.
 - A focused smoke subset covers the home integration, login, plans, and subscription creation on Chromium, Firefox, and WebKit.
 
@@ -26,7 +27,7 @@ The historical subscription ID is retained after cancellation and the new active
 
 ## Concurrency
 
-The `@concurrency` integration scenario creates one authenticated user and sends two independent subscription requests together. It does not assume which request wins. It requires statuses `201` and `409`, stable code `SUBSCRIPTION_ALREADY_ACTIVE`, and a direct database count of exactly one active row.
+The `@concurrency` integration scenario creates one authenticated user and sends two independent subscription requests together. It does not assume which request wins. It requires statuses `201` and `409`, stable code `SUBSCRIPTION_ALREADY_ACTIVE`, exactly one active subscription, one approved database payment, and only one provider authorization.
 
 ## Database verification
 
@@ -37,6 +38,8 @@ Database assertions are selective:
 - changed `plan_id` persistence;
 - cancelled row and timestamp preservation;
 - one-active-subscription invariant after concurrent requests.
+- approved amount from immutable plan price and provider-payment correlation;
+- no local subscription/payment rows after decline, unavailable provider, or timeout.
 
 All business actions occur through the API. The test database helper performs read-only verification and is not a backdoor setup layer.
 
@@ -51,6 +54,7 @@ All business actions occur through the API. The test database helper performs re
 ## Suite organization
 
 - `npm run test:unit` — Vitest unit tests.
+- `npm run test:provider` — independent fake-provider contract and behavior.
 - `npm run test:api` — Playwright API project only.
 - `npm run test:integration` — persistence and concurrency project.
 - `npm run test:ui` — complete Chromium UI project.
@@ -61,4 +65,4 @@ All business actions occur through the API. The test database helper performs re
 - `npm run test:smoke` — fundamental API behaviors tagged `@smoke`.
 - `npm test` — migrations, unit, API, integration, and full Chromium UI coverage.
 
-CI separates quality/API work, full Chromium UI coverage, and a Firefox/WebKit smoke matrix. It retries once only to collect diagnostic evidence. Screenshots and video are retained on failure and traces on the first retry. Contract testing, performance, dedicated accessibility auditing, and visual regression are not represented as implemented.
+CI separates quality/provider/API/integration work, full Chromium UI coverage, and a Firefox/WebKit smoke matrix. It retries once only to collect diagnostic evidence. Screenshots and video are retained on failure and traces on the first retry. Contract testing, performance, dedicated accessibility auditing, and visual regression are not represented as implemented.
