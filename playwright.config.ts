@@ -24,10 +24,28 @@ export default defineConfig({
       use: { baseURL: 'http://localhost:4000' },
     },
     {
-      name: 'ui',
+      name: 'ui-chromium',
       testDir: './tests/ui',
       use: {
         ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:5173',
+      },
+    },
+    {
+      name: 'ui-firefox-smoke',
+      testDir: './tests/ui',
+      grep: /@smoke/,
+      use: {
+        ...devices['Desktop Firefox'],
+        baseURL: 'http://localhost:5173',
+      },
+    },
+    {
+      name: 'ui-webkit-smoke',
+      testDir: './tests/ui',
+      grep: /@smoke/,
+      use: {
+        ...devices['Desktop Safari'],
         baseURL: 'http://localhost:5173',
       },
     },

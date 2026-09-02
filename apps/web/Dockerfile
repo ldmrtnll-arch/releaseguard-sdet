@@ -15,4 +15,5 @@ RUN npm run build --workspace @releaseguard/web
 
 FROM nginxinc/nginx-unprivileged:1.29-alpine AS runtime
 COPY --from=build /workspace/apps/web/dist /usr/share/nginx/html
+COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 8080

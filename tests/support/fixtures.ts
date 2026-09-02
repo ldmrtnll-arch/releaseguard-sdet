@@ -1,4 +1,4 @@
-import { test as base } from '@playwright/test';
+import { test as base, type Page } from '@playwright/test';
 
 import {
   createUserBuilder,
@@ -29,7 +29,12 @@ type AuthenticatedUser = {
   };
 };
 
+type AuthenticatedBrowser = AuthenticatedUser & {
+  page: Page;
+};
+
 type TestFixtures = {
+  authenticatedPage: AuthenticatedBrowser;
   authenticatedUser: AuthenticatedUser;
   authenticatedSubscriptionsApi: SubscriptionsApiClient;
   availablePlans: Record<
@@ -39,6 +44,9 @@ type TestFixtures = {
   authApi: AuthApiClient;
   plansApi: PlansApiClient;
   subscribedUser: AuthenticatedUser & { subscription: SubscriptionResponse };
+  subscribedPage: AuthenticatedBrowser & {
+    subscription: SubscriptionResponse;
+  };
   subscriptionsApi: SubscriptionsApiClient;
 };
 
@@ -84,6 +92,21 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       data,
       user: login.user,
     });
+  },
+
+  authenticatedPage: async ({ authenticatedUser, page }, use) => {
+    await page.goto('/');
+    await page.evaluate(
+      ({ accessToken, key }) => sessionStorage.setItem(key, accessToken),
+      {
+        accessToken: authenticatedUser.accessToken,
+        key: 'releaseguard.accessToken',
+      },
+    );
+    await page.reload();
+    await page.getByRole('button', { name: 'Sign out' }).waitFor();
+
+    await use({ ...authenticatedUser, page });
   },
 
   authenticatedSubscriptionsApi: async (
@@ -140,6 +163,21 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       await response.json(),
     ).data;
     await use({ ...authenticatedUser, subscription });
+  },
+
+  subscribedPage: async ({ page, subscribedUser }, use) => {
+    await page.goto('/');
+    await page.evaluate(
+      ({ accessToken, key }) => sessionStorage.setItem(key, accessToken),
+      {
+        accessToken: subscribedUser.accessToken,
+        key: 'releaseguard.accessToken',
+      },
+    );
+    await page.reload();
+    await page.getByRole('button', { name: 'Sign out' }).waitFor();
+
+    await use({ ...subscribedUser, page });
   },
 
   database: [
