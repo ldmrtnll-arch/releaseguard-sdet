@@ -72,3 +72,9 @@ npm run test:integration
 
 No test sleeps to coordinate services, no random failures are injected, and
 database access is read-only verification rather than test setup.
+
+## Relationship to contract testing
+
+These integration tests answer whether the real API, payment provider, and database work together at runtime, including timing, retry, idempotency, persistence, and concurrency. The Pact suite answers a narrower compatibility question: whether the provider still satisfies the request and response expectations declared by `PaymentProviderClient`.
+
+Contract tests therefore do not replace this suite. They intentionally omit timeouts, retry sequences, replay semantics, concurrent behavior, health checks, inspection endpoints, and database effects; those behaviors require the real runtime topology exercised here. See [Contract Testing](contract-testing.md) for the boundary contract and evolution policy.

@@ -1,4 +1,4 @@
-# Phase 5 Architecture
+# Phase 6 Architecture
 
 ReleaseGuard keeps business behavior separate from transport and persistence while remaining intentionally small.
 
@@ -20,6 +20,18 @@ flowchart TD
   UISpecs[Playwright UI specs] --> PageObjects[Page Objects]
   PageObjects --> Browser
   APIFixtures[API-first browser fixtures] --> UISpecs
+```
+
+The runtime path above remains unchanged. Contract testing adds an independent verification path:
+
+```mermaid
+flowchart LR
+  ConsumerTest[Consumer contract test] --> RealClient[Real PaymentProviderClient]
+  RealClient --> PactMock[Pact mock provider]
+  PactMock --> PactFile[Pact V4 artifact]
+  PactFile --> Verifier[Pact provider verifier]
+  Verifier --> RealProvider[Real Fake Payment Provider HTTP server]
+  StateHandlers[Deterministic provider states] --> Verifier
 ```
 
 ```mermaid
@@ -63,9 +75,13 @@ Foreign keys use restrictive deletion behavior because users, plans, and subscri
 - Direct database access is read-only and limited to invariants the public API cannot prove efficiently.
 - UI setup uses API clients for authenticated or subscribed preconditions; business behavior under test remains browser-driven.
 - Page Objects contain reusable interactions and locators, while assertions stay in specs.
+- Consumer contract tests execute the production `PaymentProviderClient` against a Pact-managed mock server and describe only fields and headers the consumer relies on.
+- Provider verification replays the generated Pact against a real Fastify HTTP listener. Named state handlers select deterministic fake-provider behavior without exposing Pact controls through the application API.
+- Pact artifacts are generated, ignored by Git, verified in the same run, and uploaded by CI for diagnosis. The monorepo does not require a broker in this phase.
+- Contract tests protect boundary compatibility; integration tests continue to prove that the API, provider, and PostgreSQL operate together at runtime.
 
 ## Operational boundaries
 
 Health, readiness, structured logging, request IDs, secret redaction, Docker health checks, and graceful shutdown remain unchanged. Playwright launches direct non-watch API and Vite processes so Windows test runs release ports reliably between commands.
 
-The local database transaction cannot include the provider's HTTP operation. After an exhausted timeout, local rows are rolled back while the external result may remain unknown; reconciliation is intentionally deferred. Invoices and later quality layers remain outside Phase 5.
+The local database transaction cannot include the provider's HTTP operation. After an exhausted timeout, local rows are rolled back while the external result may remain unknown; reconciliation is intentionally deferred. Invoices and later quality layers remain outside Phase 6.
