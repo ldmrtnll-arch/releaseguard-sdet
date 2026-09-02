@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  quality-and-tests:
-    name: Quality and fundamental tests
+  quality-and-api:
+    name: Quality, API, and integration
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -64,9 +64,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
       - name: Run unit tests
         run: npm run test:unit
 
@@ -76,14 +73,130 @@ jobs:
       - name: Run database integration tests
         run: npm run test:integration
 
-      - name: Run UI tests
-        run: npm run test:ui
-
       - name: Upload Playwright diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-diagnostics
+          name: api-playwright-diagnostics
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ui-chromium:
+    name: Chromium UI regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: releaseguard
+          POSTGRES_PASSWORD: releaseguard_ci
+          POSTGRES_USER: releaseguard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U releaseguard -d releaseguard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      CI: true
+      DATABASE_URL: postgresql://releaseguard:releaseguard_ci@127.0.0.1:5432/releaseguard
+      JWT_SECRET: releaseguard-ci-only-secret-not-for-production
+      TEST_RUN_ID: gh-ui-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Chromium UI tests
+        run: npm run test:ui
+
+      - name: Upload Chromium diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chromium-ui-diagnostics
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  cross-browser-smoke:
+    name: ${{ matrix.browser }} UI smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: releaseguard
+          POSTGRES_PASSWORD: releaseguard_ci
+          POSTGRES_USER: releaseguard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U releaseguard -d releaseguard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      CI: true
+      DATABASE_URL: postgresql://releaseguard:releaseguard_ci@127.0.0.1:5432/releaseguard
+      JWT_SECRET: releaseguard-ci-only-secret-not-for-production
+      TEST_RUN_ID: gh-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Apply database migrations
+        run: npm run db:migrate
+
+      - name: Run cross-browser smoke tests
+        run: npx playwright test --project=ui-${{ matrix.browser }}-smoke
+
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.browser }}-smoke-diagnostics
           path: |
             playwright-report/
             test-results/

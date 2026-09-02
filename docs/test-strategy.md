@@ -7,7 +7,8 @@ ReleaseGuard tests observable behavior at the cheapest useful layer and reserves
 - Unit tests cover email normalization and the parallel-safe user builder.
 - API tests cover health, authentication, public plans, subscription positive/negative behavior, ownership isolation, and the full lifecycle.
 - Integration tests cover password hashing, plan reference data, plan-change persistence, cancellation history, and concurrent creation.
-- One UI test preserves the Browser → Web → API health path.
+- Chromium UI tests cover registration, login, invalid authentication, route protection, session restoration, plan display, subscription creation/change/cancellation/re-subscription, and logout.
+- A focused smoke subset covers the home integration, login, plans, and subscription creation on Chromium, Firefox, and WebKit.
 
 ## API smoke
 
@@ -52,8 +53,12 @@ All business actions occur through the API. The test database helper performs re
 - `npm run test:unit` — Vitest unit tests.
 - `npm run test:api` — Playwright API project only.
 - `npm run test:integration` — persistence and concurrency project.
-- `npm run test:ui` — browser project.
+- `npm run test:ui` — complete Chromium UI project.
+- `npm run test:ui:smoke` — fundamental Chromium UI journeys.
+- `npm run test:ui:regression` — Chromium UI regression scenarios.
+- `npm run test:ui:critical` — the browser-only critical lifecycle.
+- `npm run test:ui:cross-browser` — smoke on Chromium, Firefox, and WebKit.
 - `npm run test:smoke` — fundamental API behaviors tagged `@smoke`.
-- `npm test` — migrations, unit tests, and every Playwright project.
+- `npm test` — migrations, unit, API, integration, and full Chromium UI coverage.
 
-CI retries once only to collect diagnostic evidence. Screenshots and video are retained on failure and traces on the first retry. Contract testing, performance, accessibility, and visual regression are not represented as implemented.
+CI separates quality/API work, full Chromium UI coverage, and a Firefox/WebKit smoke matrix. It retries once only to collect diagnostic evidence. Screenshots and video are retained on failure and traces on the first retry. Contract testing, performance, dedicated accessibility auditing, and visual regression are not represented as implemented.

@@ -58,6 +58,7 @@ export async function buildApp({ config, database }: BuildAppOptions) {
   });
 
   await app.register(cors, {
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     origin: config.corsOrigin,
   });
   await app.register(jwt, { secret: config.jwtSecret });

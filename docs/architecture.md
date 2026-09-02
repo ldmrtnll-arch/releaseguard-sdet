@@ -1,9 +1,11 @@
-# Phase 3 Architecture
+# Phase 4 Architecture
 
 ReleaseGuard keeps business behavior separate from transport and persistence while remaining intentionally small.
 
 ```mermaid
 flowchart TD
+  Browser[Browser] --> Web[React/Vite SPA]
+  Web --> Routes
   Specs[Playwright API specs] --> Clients[API clients]
   Clients --> Routes[Fastify routes]
   Routes --> Services[Domain services]
@@ -13,6 +15,9 @@ flowchart TD
   Builders[Test-data workspace] --> Fixtures
   Specs -. selected invariants .-> DBHelper[Test DB helper]
   DBHelper --> DB
+  UISpecs[Playwright UI specs] --> PageObjects[Page Objects]
+  PageObjects --> Browser
+  APIFixtures[API-first browser fixtures] --> UISpecs
 ```
 
 ```mermaid
@@ -22,6 +27,10 @@ erDiagram
 ```
 
 ## Application boundaries
+
+- React Router owns the five public/protected routes and Nginx provides the production SPA fallback.
+- `AuthProvider` keeps the short-lived browser session in `sessionStorage` and validates restoration through `/me`.
+- The web API client centralizes transport errors while pages own loading, error, and lifecycle presentation.
 
 - Auth routes and service preserve registration, login, JWT verification, bcrypt hashing, and public-user serialization.
 - Plan routes expose public reads. `PlanRepository` owns deterministic active-plan queries and explicit price ordering.
@@ -45,9 +54,11 @@ Foreign keys use restrictive deletion behavior because users, plans, and subscri
 - The user builder stays worker-scoped and keeps `workerIndex` from Phase 2.
 - Zod schemas validate only important public response fields.
 - Direct database access is read-only and limited to invariants the public API cannot prove efficiently.
+- UI setup uses API clients for authenticated or subscribed preconditions; business behavior under test remains browser-driven.
+- Page Objects contain reusable interactions and locators, while assertions stay in specs.
 
 ## Operational boundaries
 
 Health, readiness, structured logging, request IDs, secret redaction, Docker health checks, and graceful shutdown remain unchanged. Playwright launches direct non-watch API and Vite processes so Windows test runs release ports reliably between commands.
 
-Subscription UI, payments, invoices, and later quality layers remain outside Phase 3.
+Payments, invoices, and later quality layers remain outside Phase 4.

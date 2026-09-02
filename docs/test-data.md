@@ -18,7 +18,9 @@ test.user.<run-id>.<worker-index>.<counter>@releaseguard.test
 - `.test` prevents accidental external delivery.
 - Explicit overrides support negative inputs without Faker or scenario factories.
 
-`authenticatedUser` registers and logs in a new user. `subscribedUser` builds on it only when an active Starter subscription is a genuine precondition. Both are test-scoped where state is mutable; the builder remains worker-scoped.
+`authenticatedUser` registers and logs in a new user. `subscribedUser` builds on it only when an active Starter subscription is a genuine precondition. `authenticatedPage` and `subscribedPage` reuse those API-created states, inject the token into the current tab's `sessionStorage`, reload, and wait for session restoration. All remain test-scoped where state is mutable; the builder remains worker-scoped.
+
+Browser storage state is deliberately not used for authentication because Playwright storage state does not persist `sessionStorage`. An initialization script is also avoided so logout tests cannot accidentally have the token injected again on navigation.
 
 A subscription-input builder was intentionally not added because `{ planId }` has no meaningful generation behavior.
 

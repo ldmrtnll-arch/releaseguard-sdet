@@ -2,7 +2,7 @@
 
 ReleaseGuard is an SDET and Quality Engineering portfolio project built around a controlled SaaS subscription platform. The application is deliberately small; its purpose is to demonstrate reliable, observable, and maintainable quality engineering around a real domain.
 
-Phase 3 adds immutable plan reference data, the complete subscription lifecycle, and a professional API automation layer to the authentication and test-data foundation from the previous phases.
+Phase 4 adds the complete browser experience and a maintainable UI automation layer to the authentication, subscription domain, and API foundation from the previous phases.
 
 ## Current architecture
 
@@ -11,9 +11,10 @@ Browser -> React/Vite web -> Fastify API -> Services -> Repositories -> PostgreS
 Playwright API tests -> API clients -> Fastify API
                          Fixtures -> test-scoped users and subscriptions
                          DB helper -> selected persistence invariants
+Playwright UI tests -> Page Objects -> real browser -> React -> real API
 ```
 
-The web application continues to expose the health integration. Login, plans, and subscription screens are intentionally reserved for Phase 4.
+The React application provides registration, login, session restoration, public plans, protected subscription management, logout, and responsive loading/error states. Browser automation exercises these screens against the real API without request mocking.
 
 ## Implemented API
 
@@ -61,7 +62,7 @@ Starter, Professional, and Business are versioned reference data with determinis
 ```powershell
 Copy-Item .env.example .env
 npm ci
-npx playwright install chromium
+npx playwright install chromium firefox webkit
 docker compose up -d postgres
 npm run db:migrate
 npm run dev
@@ -89,23 +90,27 @@ npm run test:unit
 npm run test:api
 npm run test:integration
 npm run test:ui
+npm run test:ui:smoke
+npm run test:ui:regression
+npm run test:ui:critical
+npm run test:ui:cross-browser
 npm run test:smoke
 npm test
 ```
 
-The current suite contains 44 tests: 4 unit, 34 API, 5 database integration, and 1 UI test. The API smoke suite contains 8 tests covering health, authentication, plan listing, subscription creation, and current subscription retrieval.
+The current suite contains 59 tests: 4 unit, 34 API, 5 database integration, and 16 Chromium UI tests. Four browser smoke scenarios also run on Firefox and WebKit. The default `npm test` runs the full Chromium path; cross-browser coverage stays explicit and intentionally small.
 
 ## Test data and isolation
 
 Users and subscriptions are mutable, test-owned data. Each test creates a unique user using the run ID, `workerIndex`, and a monotonic counter. Plans are shared immutable reference data resolved by code rather than generated or mutated. There is no shared account, global truncation, or test-order dependency.
 
-See [API Testing](docs/api-testing.md), [Test Data Engineering](docs/test-data.md), [Architecture](docs/architecture.md), and [Test Strategy](docs/test-strategy.md).
+See [UI Testing](docs/ui-testing.md), [API Testing](docs/api-testing.md), [Test Data Engineering](docs/test-data.md), [Architecture](docs/architecture.md), and [Test Strategy](docs/test-strategy.md).
 
 ## Project roadmap
 
 1. SDET Foundation — complete
 2. Authentication and Test Data Engineering — complete
-3. **Subscription Domain and API Automation — complete**
-4. UI Automation — next
+3. Subscription Domain and API Automation — complete
+4. **UI Automation — complete**
 
-Payments, invoices, contract testing, performance, accessibility, visual regression, custom reporting, and flaky analytics are not implemented.
+Payments, invoices, contract testing, performance, dedicated accessibility auditing, visual regression, custom reporting, and flaky analytics are not implemented.

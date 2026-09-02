@@ -1,7 +1,7 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../support/fixtures';
 
-test.describe('Application home @ui @smoke @critical', () => {
-  test('shows API availability on the application home page', async ({
+test.describe('Application home @ui', () => {
+  test('shows API availability and primary actions @smoke', async ({
     page,
   }) => {
     await page.goto('/');
@@ -13,5 +13,11 @@ test.describe('Application home @ui @smoke @critical', () => {
       }),
     ).toBeVisible();
     await expect(page.getByRole('status')).toContainText('API available');
+    await expect(
+      page.getByRole('link', { name: 'Explore plans' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Create account' }).first(),
+    ).toBeVisible();
   });
 });
