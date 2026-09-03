@@ -1,4 +1,27 @@
-# Phase 9 Architecture
+# Phase 10 Architecture
+
+## CI quality architecture
+
+```text
+                         Pull request
+                              |
+       +-----------+----------+----------+-----------+
+       |           |          |          |           |
+    Quality    API / DB      Pact    UI browsers   k6 smoke
+                               |          |
+                               |     Chromium full
+                               |     Fx / WK smoke
+                               |          |
+                               +---- Advanced quality
+                                          |
+                                  summaries + artifacts
+
+             Manual / weekly                 Manual
+                    |                           |
+        full Chromium / Fx / WK          controlled k6 load
+```
+
+The PR gates are independent and run in parallel. Database consumers own isolated PostgreSQL services, startup is health-based, and expensive full secondary-browser coverage stays in the extended workflow. Each test job owns its result summary and artifacts; there is no cross-job aggregator. Exact triggers, status checks, evidence, and concurrency behavior are documented in [CI Quality Platform](ci-quality-platform.md).
 
 ReleaseGuard keeps business behavior separate from transport and persistence while remaining intentionally small.
 

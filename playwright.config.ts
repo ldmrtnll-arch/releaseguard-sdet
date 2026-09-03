@@ -60,6 +60,14 @@ export default defineConfig({
       },
     },
     {
+      name: 'ui-firefox',
+      testDir: './tests/ui',
+      use: {
+        ...devices['Desktop Firefox'],
+        baseURL: 'http://localhost:5173',
+      },
+    },
+    {
       name: 'accessibility',
       testDir: './tests/accessibility',
       use: {
@@ -80,6 +88,14 @@ export default defineConfig({
       name: 'ui-webkit-smoke',
       testDir: './tests/ui',
       grep: /@smoke/,
+      use: {
+        ...devices['Desktop Safari'],
+        baseURL: 'http://localhost:5173',
+      },
+    },
+    {
+      name: 'ui-webkit',
+      testDir: './tests/ui',
       use: {
         ...devices['Desktop Safari'],
         baseURL: 'http://localhost:5173',

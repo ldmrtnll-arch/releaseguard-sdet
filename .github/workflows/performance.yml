@@ -6,6 +6,13 @@ on:
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: 22
+
+concurrency:
+  group: performance-load
+  cancel-in-progress: false
+
 jobs:
   performance-load:
     name: Controlled k6 load
@@ -17,19 +24,19 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Run controlled k6 load
         run: npm run test:perf:load
 
       - name: Upload k6 summary
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: performance-load-results
           path: performance-results/

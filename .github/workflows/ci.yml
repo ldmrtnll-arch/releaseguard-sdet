@@ -9,48 +9,305 @@ on:
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: 22
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  performance-smoke:
-    name: Performance smoke
+  quality:
+    name: Quality
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
-    env:
-      PERF_RUN_ID: gh-smoke-${{ github.run_id }}-${{ github.run_attempt }}
-      PERF_SMOKE_LOGIN_P95_MS: 600
-      PERF_SMOKE_SUBSCRIPTION_WRITE_P95_MS: 1000
-
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@v7
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Check formatting
+        run: npm run format:check
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Run unit tests
+        run: npm run test:unit
 
-      - name: Run k6 performance smoke
-        run: npm run test:perf:smoke
-
-      - name: Upload k6 summary
+  api-integration:
+    name: API and integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: releaseguard
+          POSTGRES_PASSWORD: releaseguard_ci
+          POSTGRES_USER: releaseguard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U releaseguard -d releaseguard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CI: true
+      DATABASE_URL: postgresql://releaseguard:releaseguard_ci@127.0.0.1:5432/releaseguard
+      ENABLE_TEST_CONTROLS: true
+      JWT_SECRET: releaseguard-ci-only-secret-not-for-production
+      PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
+      TEST_RUN_ID: gh-api-${{ github.run_id }}-${{ github.run_attempt }}
+      TEST_OBSERVABILITY_ALLOW_MISSING: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply database migrations
+        run: npm run db:migrate
+      - name: Run payment provider tests
+        run: npm run test:provider
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/payment-provider.json
+      - name: Analyze payment provider tests
         if: always()
-        uses: actions/upload-artifact@v4
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/payment-provider.json
+      - name: Run API tests
+        run: npx playwright test --project=api
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/api.json
+      - name: Analyze API tests
+        if: always()
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/api.json
+      - name: Run database integration tests
+        run: npx playwright test --project=integration
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/integration.json
+      - name: Analyze database integration tests
+        if: always()
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/integration.json
+      - name: Upload API and integration observability
+        if: always()
+        uses: actions/upload-artifact@v7
         with:
-          name: performance-smoke-results
-          path: performance-results/
+          name: observability-api-integration
+          path: test-observability-results/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload API and integration diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-api-integration
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  contract:
+    name: Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CI: true
+      PACT_DO_NOT_TRACK: 1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate consumer Pact and verify provider
+        run: npm run test:contract
+      - name: Upload Pact contract
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pact-contracts
+          path: pacts/
           if-no-files-found: error
           retention-days: 7
 
-      - name: Clean up performance stack
+  ui-chromium:
+    name: Chromium UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: releaseguard
+          POSTGRES_PASSWORD: releaseguard_ci
+          POSTGRES_USER: releaseguard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U releaseguard -d releaseguard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CI: true
+      DATABASE_URL: postgresql://releaseguard:releaseguard_ci@127.0.0.1:5432/releaseguard
+      ENABLE_TEST_CONTROLS: true
+      JWT_SECRET: releaseguard-ci-only-secret-not-for-production
+      PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
+      TEST_RUN_ID: gh-ui-${{ github.run_id }}-${{ github.run_attempt }}
+      TEST_OBSERVABILITY_ALLOW_MISSING: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Apply database migrations
+        run: npm run db:migrate
+      - name: Run Chromium UI tests
+        run: npx playwright test --project=ui-chromium
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-chromium.json
+      - name: Analyze Chromium UI tests
         if: always()
-        run: docker compose down --volumes
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-chromium.json
+      - name: Upload Chromium observability
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: observability-ui-chromium
+          path: test-observability-results/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload Chromium diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-ui-chromium
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  cross-browser-smoke:
+    name: ${{ matrix.label }} UI smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - browser: firefox
+            label: Firefox
+          - browser: webkit
+            label: WebKit
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: releaseguard
+          POSTGRES_PASSWORD: releaseguard_ci
+          POSTGRES_USER: releaseguard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U releaseguard -d releaseguard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CI: true
+      DATABASE_URL: postgresql://releaseguard:releaseguard_ci@127.0.0.1:5432/releaseguard
+      ENABLE_TEST_CONTROLS: true
+      JWT_SECRET: releaseguard-ci-only-secret-not-for-production
+      PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
+      TEST_RUN_ID: gh-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}
+      TEST_OBSERVABILITY_ALLOW_MISSING: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Install browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Apply database migrations
+        run: npm run db:migrate
+      - name: Run cross-browser smoke tests
+        run: npx playwright test --project=ui-${{ matrix.browser }}-smoke
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-${{ matrix.browser }}-smoke.json
+      - name: Analyze cross-browser smoke tests
+        if: always()
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-${{ matrix.browser }}-smoke.json
+      - name: Upload browser observability
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: observability-${{ matrix.browser }}-smoke
+          path: test-observability-results/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-${{ matrix.browser }}-smoke
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
   advanced-quality:
-    name: Accessibility and visual regression
+    name: Advanced quality
     runs-on: ubuntu-latest
     container: mcr.microsoft.com/playwright:v1.62.1-noble
     timeout-minutes: 15
-
     services:
       postgres:
         image: postgres:17-alpine
@@ -63,7 +320,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-
     env:
       CI: true
       DATABASE_URL: postgresql://releaseguard:releaseguard_ci@postgres:5432/releaseguard
@@ -73,364 +329,79 @@ jobs:
       TEST_RUN_ID: gh-quality-${{ github.run_id }}-${{ github.run_attempt }}
       TEST_OBSERVABILITY_ALLOW_MISSING: true
       VISUAL_TEST_IN_CONTAINER: true
-
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@v7
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
-
+          cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: npm ci
-
       - name: Run accessibility scans
         run: npm run test:a11y
         env:
           TEST_OBSERVABILITY_OUTPUT: test-observability-results/accessibility.json
-
       - name: Analyze accessibility tests
         if: always()
         run: npm run test:analyze
         env:
           TEST_OBSERVABILITY_OUTPUT: test-observability-results/accessibility.json
-
       - name: Compare visual baselines
         run: npm run test:visual
         env:
           TEST_OBSERVABILITY_OUTPUT: test-observability-results/visual.json
-
       - name: Analyze visual tests
         if: always()
         run: npm run test:analyze
         env:
           TEST_OBSERVABILITY_OUTPUT: test-observability-results/visual.json
-
       - name: Upload advanced-quality observability
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: observability-advanced-quality
           path: test-observability-results/
           if-no-files-found: error
           retention-days: 7
-
       - name: Upload advanced-quality diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: advanced-quality-diagnostics
+          name: playwright-advanced-quality
           path: |
             playwright-report/
             test-results/
           if-no-files-found: ignore
           retention-days: 7
 
-  contract-tests:
-    name: Consumer contract and provider verification
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    env:
-      CI: true
-      PACT_DO_NOT_TRACK: 1
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate consumer Pact and verify provider
-        run: npm run test:contract
-
-      - name: Upload Pact contract
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pact-contracts
-          path: pacts/
-          if-no-files-found: error
-          retention-days: 7
-
-  quality-and-api:
-    name: Quality, API, and integration
+  performance-smoke:
+    name: Performance smoke
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: releaseguard
-          POSTGRES_PASSWORD: releaseguard_ci
-          POSTGRES_USER: releaseguard
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U releaseguard -d releaseguard"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
     env:
-      CI: true
-      DATABASE_URL: postgresql://releaseguard:releaseguard_ci@127.0.0.1:5432/releaseguard
-      ENABLE_TEST_CONTROLS: true
-      JWT_SECRET: releaseguard-ci-only-secret-not-for-production
-      PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
-      TEST_RUN_ID: gh-${{ github.run_id }}-${{ github.run_attempt }}
-      TEST_OBSERVABILITY_ALLOW_MISSING: true
-
+      PERF_RUN_ID: gh-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+      PERF_SMOKE_LOGIN_P95_MS: 600
+      PERF_SMOKE_SUBSCRIPTION_WRITE_P95_MS: 1000
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@v7
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Apply database migrations
-        run: npm run db:migrate
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Check formatting
-        run: npm run format:check
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Build
-        run: npm run build
-
-      - name: Run unit tests
-        run: npm run test:unit
-
-      - name: Run payment provider tests
-        run: npm run test:provider
-        env:
-          TEST_OBSERVABILITY_OUTPUT: test-observability-results/payment-provider.json
-
-      - name: Analyze payment provider tests
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Run k6 performance smoke
+        run: npm run test:perf:smoke
+      - name: Upload k6 summary
         if: always()
-        run: npm run test:analyze
-        env:
-          TEST_OBSERVABILITY_OUTPUT: test-observability-results/payment-provider.json
-
-      - name: Run API tests
-        run: npm run test:api
-        env:
-          TEST_OBSERVABILITY_OUTPUT: test-observability-results/api.json
-
-      - name: Analyze API tests
-        if: always()
-        run: npm run test:analyze
-        env:
-          TEST_OBSERVABILITY_OUTPUT: test-observability-results/api.json
-
-      - name: Run database integration tests
-        run: npm run test:integration
-        env:
-          TEST_OBSERVABILITY_OUTPUT: test-observability-results/integration.json
-
-      - name: Analyze database integration tests
-        if: always()
-        run: npm run test:analyze
-        env:
-          TEST_OBSERVABILITY_OUTPUT: test-observability-results/integration.json
-
-      - name: Upload API observability
-        if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: observability-api-and-integration
-          path: test-observability-results/
+          name: performance-smoke-results
+          path: performance-results/
           if-no-files-found: error
           retention-days: 7
-
-      - name: Upload Playwright diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-playwright-diagnostics
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-
-  ui-chromium:
-    name: Chromium UI regression
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: releaseguard
-          POSTGRES_PASSWORD: releaseguard_ci
-          POSTGRES_USER: releaseguard
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U releaseguard -d releaseguard"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      CI: true
-      DATABASE_URL: postgresql://releaseguard:releaseguard_ci@127.0.0.1:5432/releaseguard
-      ENABLE_TEST_CONTROLS: true
-      JWT_SECRET: releaseguard-ci-only-secret-not-for-production
-      PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
-      TEST_RUN_ID: gh-ui-${{ github.run_id }}-${{ github.run_attempt }}
-      TEST_OBSERVABILITY_ALLOW_MISSING: true
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Run Chromium UI tests
-        run: npm run test:ui
-        env:
-          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-chromium.json
-
-      - name: Analyze Chromium UI tests
+      - name: Clean up performance stack
         if: always()
-        run: npm run test:analyze
-        env:
-          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-chromium.json
-
-      - name: Upload Chromium observability
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: observability-ui-chromium
-          path: test-observability-results/
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Upload Chromium diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: chromium-ui-diagnostics
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-
-  cross-browser-smoke:
-    name: ${{ matrix.browser }} UI smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        browser: [firefox, webkit]
-
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: releaseguard
-          POSTGRES_PASSWORD: releaseguard_ci
-          POSTGRES_USER: releaseguard
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U releaseguard -d releaseguard"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      CI: true
-      DATABASE_URL: postgresql://releaseguard:releaseguard_ci@127.0.0.1:5432/releaseguard
-      ENABLE_TEST_CONTROLS: true
-      JWT_SECRET: releaseguard-ci-only-secret-not-for-production
-      PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
-      TEST_RUN_ID: gh-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}
-      TEST_OBSERVABILITY_ALLOW_MISSING: true
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install browser
-        run: npx playwright install --with-deps ${{ matrix.browser }}
-
-      - name: Apply database migrations
-        run: npm run db:migrate
-
-      - name: Run cross-browser smoke tests
-        run: npx playwright test --project=ui-${{ matrix.browser }}-smoke
-        env:
-          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-${{ matrix.browser }}.json
-
-      - name: Analyze cross-browser smoke tests
-        if: always()
-        run: npm run test:analyze
-        env:
-          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-${{ matrix.browser }}.json
-
-      - name: Upload browser observability
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: observability-${{ matrix.browser }}-smoke
-          path: test-observability-results/
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Upload browser diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.browser }}-smoke-diagnostics
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7
+        run: docker compose down --volumes

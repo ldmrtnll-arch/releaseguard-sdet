@@ -77,11 +77,13 @@ All business actions occur through the API. The test database helper performs re
 - `npm run test:ui:critical` — the browser-only critical lifecycle.
 - `npm run test:resilience` — user-facing failure and recovery scenarios.
 - `npm run test:ui:cross-browser` — smoke on Chromium, Firefox, and WebKit.
+- `npm run test:ui:firefox:full` — complete Firefox UI project for extended regression validation.
+- `npm run test:ui:webkit:full` — complete WebKit UI project for extended regression validation.
 - `npm run test:visual` — compare four baselines in the pinned Linux Playwright container.
 - `npm run test:visual:update` — deliberately regenerate Linux baselines for review.
 - `npm run test:smoke` — fundamental API behaviors tagged `@smoke`.
 - `npm test` — contracts, migrations, unit, provider, API, integration, full Chromium UI, and accessibility coverage.
 
-CI adds advanced-quality and performance-smoke gates alongside contract, API/integration, full Chromium UI, and Firefox/WebKit smoke jobs. Each Playwright invocation has a distinct JSON/Markdown artifact and an always-run analyzer; the original test step remains authoritative for job failure. V1 deliberately has no cross-job totals or historical trend store. Automated accessibility is not a complete assistive-technology or legal audit; visual comparison does not prove functional correctness; UI resilience does not replace service integration tests.
+CI separates static/unit quality, API/integration, contract, full Chromium UI, Firefox and WebKit smoke, advanced quality, and performance smoke into branch-protection-ready PR checks. The independent gates run in parallel; a weekly/manual extended workflow runs the same 21 UI cases fully on Chromium, Firefox, and WebKit, while controlled k6 load stays manual. Each Playwright invocation has a distinct JSON/Markdown artifact and an always-run analyzer; the original test step remains authoritative for job failure. V1 deliberately has no cross-job totals or historical trend store. See [CI Quality Platform](ci-quality-platform.md) for exact triggers and evidence policy. Automated accessibility is not a complete assistive-technology or legal audit; visual comparison does not prove functional correctness; UI resilience does not replace service integration tests.
 
 Performance smoke is independent because it requires Docker/k6 and measures a built API rather than correctness test servers. Full load is manual and excluded from `npm test`; shared-runner results detect coarse regressions, not small latency changes or production capacity.
