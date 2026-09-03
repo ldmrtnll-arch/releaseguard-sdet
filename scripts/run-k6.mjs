@@ -1,9 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import {
-  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import process from 'node:process';
@@ -41,9 +41,14 @@ function run(command, args, { allowFailure = false, ...options } = {}) {
 }
 
 function sanitizeSummary(path) {
-  const summary = JSON.parse(readFileSync(path, 'utf8'));
-  delete summary.setup_data;
-  writeFileSync(path, `${JSON.stringify(summary, null, 2)}\n`);
+  try {
+    const summary = JSON.parse(readFileSync(path, 'utf8'));
+    delete summary.setup_data;
+    writeFileSync(path, `${JSON.stringify(summary, null, 2)}\n`);
+  } catch (error) {
+    if (existsSync(path)) unlinkSync(path);
+    throw error;
+  }
 }
 
 const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
@@ -64,12 +69,15 @@ const environment = {
   ...process.env,
   API_NODE_ENV: 'production',
   PERF_RUN_ID: runId,
+  ...(execution === 'docker' &&
+  process.platform !== 'win32' &&
+  typeof process.getuid === 'function' &&
+  typeof process.getgid === 'function'
+    ? { K6_DOCKER_USER: `${process.getuid()}:${process.getgid()}` }
+    : {}),
 };
 
 mkdirSync('performance-results', { recursive: true });
-if (execution === 'docker' && process.platform !== 'win32') {
-  chmodSync('performance-results', 0o777);
-}
 
 let failure;
 

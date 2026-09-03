@@ -6,6 +6,23 @@ import {
   subscriptionWrite,
 } from './scenarios/operations.js';
 
+function threshold(name, localDefault) {
+  const configured = __ENV[name];
+  if (configured === undefined) return localDefault;
+
+  const value = Number(configured);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive number`);
+  }
+  return value;
+}
+
+const loginP95 = threshold('PERF_SMOKE_LOGIN_P95_MS', 400);
+const subscriptionWriteP95 = threshold(
+  'PERF_SMOKE_SUBSCRIPTION_WRITE_P95_MS',
+  750,
+);
+
 export const options = {
   summaryTrendStats: ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
   thresholds: {
@@ -15,9 +32,9 @@ export const options = {
     plans_errors: ['rate<0.01'],
     authenticated_read_duration: ['p(95)<300'],
     authenticated_read_errors: ['rate<0.01'],
-    login_duration: ['p(95)<400'],
+    login_duration: [`p(95)<${loginP95}`],
     login_errors: ['rate<0.01'],
-    subscription_write_duration: ['p(95)<750'],
+    subscription_write_duration: [`p(95)<${subscriptionWriteP95}`],
     subscription_write_errors: ['rate<0.01'],
   },
   scenarios: {

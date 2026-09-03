@@ -121,12 +121,15 @@ services:
 
   k6:
     image: ${K6_IMAGE:-grafana/k6:2.2.0}
+    user: ${K6_DOCKER_USER:-12345:12345}
     profiles: [performance]
     working_dir: /performance
     environment:
       API_BASE_URL: http://api:4000
       PERF_RUN_ID: ${PERF_RUN_ID:-perf-manual}
       PERF_USER_PASSWORD: ${PERF_USER_PASSWORD:-PerfPass123!}
+      PERF_SMOKE_LOGIN_P95_MS: ${PERF_SMOKE_LOGIN_P95_MS:-400}
+      PERF_SMOKE_SUBSCRIPTION_WRITE_P95_MS: ${PERF_SMOKE_SUBSCRIPTION_WRITE_P95_MS:-750}
     volumes:
       - ./tests/performance:/performance:ro
       - ./performance-results:/results
