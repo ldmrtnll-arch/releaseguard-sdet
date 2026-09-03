@@ -9,6 +9,7 @@ export default tseslint.config(
       '**/node_modules/**',
       'playwright-report/**',
       'test-results/**',
+      'test-observability-results/**',
     ],
   },
   eslint.configs.recommended,

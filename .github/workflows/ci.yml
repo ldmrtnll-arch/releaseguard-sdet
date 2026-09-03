@@ -71,6 +71,7 @@ jobs:
       JWT_SECRET: releaseguard-ci-only-secret-not-for-production
       PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
       TEST_RUN_ID: gh-quality-${{ github.run_id }}-${{ github.run_attempt }}
+      TEST_OBSERVABILITY_ALLOW_MISSING: true
       VISUAL_TEST_IN_CONTAINER: true
 
     steps:
@@ -88,9 +89,34 @@ jobs:
 
       - name: Run accessibility scans
         run: npm run test:a11y
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/accessibility.json
+
+      - name: Analyze accessibility tests
+        if: always()
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/accessibility.json
 
       - name: Compare visual baselines
         run: npm run test:visual
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/visual.json
+
+      - name: Analyze visual tests
+        if: always()
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/visual.json
+
+      - name: Upload advanced-quality observability
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observability-advanced-quality
+          path: test-observability-results/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload advanced-quality diagnostics
         if: failure()
@@ -164,6 +190,7 @@ jobs:
       JWT_SECRET: releaseguard-ci-only-secret-not-for-production
       PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
       TEST_RUN_ID: gh-${{ github.run_id }}-${{ github.run_attempt }}
+      TEST_OBSERVABILITY_ALLOW_MISSING: true
 
     steps:
       - name: Check out repository
@@ -198,12 +225,45 @@ jobs:
 
       - name: Run payment provider tests
         run: npm run test:provider
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/payment-provider.json
+
+      - name: Analyze payment provider tests
+        if: always()
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/payment-provider.json
 
       - name: Run API tests
         run: npm run test:api
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/api.json
+
+      - name: Analyze API tests
+        if: always()
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/api.json
 
       - name: Run database integration tests
         run: npm run test:integration
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/integration.json
+
+      - name: Analyze database integration tests
+        if: always()
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/integration.json
+
+      - name: Upload API observability
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observability-api-and-integration
+          path: test-observability-results/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload Playwright diagnostics
         if: failure()
@@ -243,6 +303,7 @@ jobs:
       JWT_SECRET: releaseguard-ci-only-secret-not-for-production
       PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
       TEST_RUN_ID: gh-ui-${{ github.run_id }}-${{ github.run_attempt }}
+      TEST_OBSERVABILITY_ALLOW_MISSING: true
 
     steps:
       - name: Check out repository
@@ -262,6 +323,23 @@ jobs:
 
       - name: Run Chromium UI tests
         run: npm run test:ui
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-chromium.json
+
+      - name: Analyze Chromium UI tests
+        if: always()
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-chromium.json
+
+      - name: Upload Chromium observability
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observability-ui-chromium
+          path: test-observability-results/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload Chromium diagnostics
         if: failure()
@@ -305,6 +383,7 @@ jobs:
       JWT_SECRET: releaseguard-ci-only-secret-not-for-production
       PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
       TEST_RUN_ID: gh-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}
+      TEST_OBSERVABILITY_ALLOW_MISSING: true
 
     steps:
       - name: Check out repository
@@ -327,6 +406,23 @@ jobs:
 
       - name: Run cross-browser smoke tests
         run: npx playwright test --project=ui-${{ matrix.browser }}-smoke
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-${{ matrix.browser }}.json
+
+      - name: Analyze cross-browser smoke tests
+        if: always()
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-${{ matrix.browser }}.json
+
+      - name: Upload browser observability
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observability-${{ matrix.browser }}-smoke
+          path: test-observability-results/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload browser diagnostics
         if: failure()
