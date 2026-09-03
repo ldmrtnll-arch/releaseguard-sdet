@@ -13,6 +13,7 @@ ReleaseGuard tests observable behavior at the cheapest useful layer and reserves
 - Chromium resilience tests cover unavailable health/plans rendering, invalid-session recovery, payment decline, and provider outage without duplicating service retry semantics.
 - Accessibility scans cover six critical anonymous and authenticated states; four selective Linux visual baselines protect high-value layout regions.
 - A focused smoke subset covers the home integration, login, plans, and subscription creation on Chromium, Firefox, and WebKit.
+- k6 covers DB-backed plans reads, authenticated reads, bcrypt-backed login, and bounded subscription writes with measured latency/error thresholds.
 
 ## API smoke
 
@@ -64,6 +65,8 @@ All business actions occur through the API. The test database helper performs re
 - `npm run test:contract` — generate a clean Pact and then verify every interaction in order.
 - `npm run test:api` — Playwright API project only.
 - `npm run test:integration` — persistence and concurrency project.
+- `npm run test:perf:smoke` — fast Docker-based performance regression gate with five unique subscription writes.
+- `npm run test:perf:load` — manual 50-second controlled read/auth/login load with a 12-VU combined peak.
 - `npm run test:ui` — complete Chromium UI project.
 - `npm run test:ui:smoke` — fundamental Chromium UI journeys.
 - `npm run test:ui:regression` — Chromium UI regression scenarios.
@@ -75,4 +78,6 @@ All business actions occur through the API. The test database helper performs re
 - `npm run test:smoke` — fundamental API behaviors tagged `@smoke`.
 - `npm test` — contracts, migrations, unit, provider, API, integration, full Chromium UI, and accessibility coverage.
 
-CI adds one advanced-quality gate for accessibility and visual comparison in `mcr.microsoft.com/playwright:v1.62.1-noble`. Other jobs retain the contract gate, quality/provider/API/integration work, full Chromium UI coverage, and Firefox/WebKit smoke matrix. Automated accessibility is not a complete assistive-technology or legal audit; visual comparison does not prove functional correctness; UI resilience does not replace service integration tests. Performance is not represented as implemented.
+CI adds advanced-quality and performance-smoke gates alongside contract, API/integration, full Chromium UI, and Firefox/WebKit smoke jobs. Automated accessibility is not a complete assistive-technology or legal audit; visual comparison does not prove functional correctness; UI resilience does not replace service integration tests.
+
+Performance smoke is independent because it requires Docker/k6 and measures a built API rather than correctness test servers. Full load is manual and excluded from `npm test`; shared-runner results detect coarse regressions, not small latency changes or production capacity.
