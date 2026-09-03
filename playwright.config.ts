@@ -46,6 +46,23 @@ export default defineConfig({
       },
     },
     {
+      name: 'accessibility',
+      testDir: './tests/accessibility',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:5173',
+      },
+    },
+    {
+      name: 'visual',
+      testDir: './tests/visual',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:5173',
+        viewport: { height: 900, width: 1440 },
+      },
+    },
+    {
       name: 'ui-webkit-smoke',
       testDir: './tests/ui',
       grep: /@smoke/,

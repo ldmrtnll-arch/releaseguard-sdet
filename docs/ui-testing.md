@@ -2,7 +2,7 @@
 
 ReleaseGuard's browser suite validates the real React application against the real Fastify API and PostgreSQL database. It does not mock network responses, use fixed accounts, or prepare business state through direct database writes.
 
-Subscription journeys also cross the real payment-service HTTP boundary. The provider's deterministic default is `approved`, so browser tests remain focused on UI behavior; decline, retry, timeout, and idempotency stay in the cheaper provider and integration layers.
+Subscription journeys also cross the real payment-service HTTP boundary. The provider's deterministic default is `approved`; focused resilience scenarios additionally prove human-readable decline and outage behavior. Retry, timeout, and idempotency semantics stay in the cheaper provider and integration layers.
 
 ## Philosophy
 
@@ -18,11 +18,15 @@ Cross-browser smoke is explicit rather than part of the default `npm test`, keep
 
 `@smoke` represents the minimum customer path: application availability, login, visible plans, and subscription creation/current state. `@regression` adds registration failures, invalid login, protected routes, session refresh, logout, plan changes, cancellation confirmation/abort, and re-subscription.
 
+Five `@resilience` scenarios validate stable UI outcomes for unavailable health, a failed plans request, an invalidated session, a declined payment, and a provider outage. The payment scenarios add a test-only request header while keeping the browser, API, payment client, and provider real. `page.route()` is limited to rendering health/plans network-error states; it does not replace happy-path or service integration coverage. Every failure must leave a readable, actionable state rather than an indefinite spinner or raw technical detail.
+
 ## Test architecture
 
 API-first fixtures create only test preconditions. `authenticatedPage` and `subscribedPage` create unique users through public endpoints, place the returned token in the current tab's `sessionStorage`, reload, and wait for `/me` restoration. The critical lifecycle intentionally avoids this shortcut.
 
 Page Objects under `tests/support/ui` expose reusable actions and semantic locators for login, registration, plans, and subscriptions. Assertions remain in the specs. Locators prefer roles, accessible names, labels, and visible domain text; there are no CSS/XPath implementation selectors or arbitrary sleeps.
+
+The separate axe suite builds on the same semantic selectors and API-first fixtures. Its dialog scan also checks keyboard focus and return behavior; automated scans complement rather than replace manual accessibility review.
 
 Every Playwright test receives its own browser context and test-scoped mutable data. The worker-scoped builder combines a run ID, worker index, and counter, so parallel execution does not share users, tokens, or subscriptions. Plans are the only shared data because they are immutable reference rows.
 
@@ -43,6 +47,7 @@ npm run test:ui:smoke
 npm run test:ui:regression
 npm run test:ui:critical
 npm run test:ui:cross-browser
+npm run test:resilience
 npm run test:headed
 npm run test:ui:debug
 ```
