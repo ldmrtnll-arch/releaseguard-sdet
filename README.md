@@ -2,7 +2,7 @@
 
 ReleaseGuard is an SDET and Quality Engineering portfolio project built around a controlled SaaS subscription platform. The application is deliberately small; its purpose is to demonstrate reliable, observable, and maintainable quality engineering around a real domain.
 
-Phase 6 adds consumer-driven contract testing to the authentication, subscription, browser, and payment-integration foundations from previous phases. Pact now protects the HTTP boundary between the ReleaseGuard API and the independent fake payment provider without replacing the real integration suite.
+Phase 7 adds automated accessibility checks, selective Linux visual baselines, and user-facing resilience coverage to the functional, integration, and contract foundations from previous phases.
 
 ## Current architecture
 
@@ -15,6 +15,7 @@ Playwright API tests -> API clients -> Fastify API
 Playwright UI tests -> Page Objects -> real browser -> React -> real API
 PaymentProviderClient -> Pact mock provider -> generated consumer contract
 Generated consumer contract -> Pact verifier -> real Fake Payment Provider over HTTP
+Accessibility scans + Visual comparisons + Functional UI -> React application
 ```
 
 The React application provides registration, login, session restoration, public plans, protected subscription management, logout, and responsive loading/error states. Browser automation exercises these screens against the real API without request mocking. New subscriptions are authorized against an independent deterministic provider before the subscription and approved payment are persisted atomically.
@@ -60,6 +61,7 @@ Starter, Professional, and Business are versioned reference data with determinis
 - React 19 and Vite 7
 - Playwright Test and Vitest
 - Pact Specification V4 with Pact JS
+- axe-core accessibility scans and Playwright visual comparisons
 - ESLint, typescript-eslint, and Prettier
 - Docker Compose and GitHub Actions
 
@@ -94,6 +96,7 @@ npm run typecheck
 npm run build
 npm run test:unit
 npm run test:provider
+npm run test:a11y
 npm run test:contract:consumer
 npm run test:contract:provider
 npm run test:contract
@@ -104,17 +107,20 @@ npm run test:ui:smoke
 npm run test:ui:regression
 npm run test:ui:critical
 npm run test:ui:cross-browser
+npm run test:resilience
+npm run test:visual
+npm run test:visual:update
 npm run test:smoke
 npm test
 ```
 
-The application baseline remains 82 tests: 10 unit, 10 payment-provider, 34 API, 12 integration, and 16 Chromium UI tests. Contract coverage adds three consumer tests/Pact interactions and one provider-verification test, for 86 executable test cases in the default suite. Four browser smoke scenarios also run on Firefox and WebKit. The default `npm test` generates and verifies the contract before running the complete provider/API/integration/Chromium path; cross-browser coverage stays explicit and intentionally small.
+The default suite contains 97 executable cases: 10 unit, 10 payment-provider, 34 API, 12 integration, three consumer-contract tests, one provider-verification test, 21 Chromium functional UI tests, and six accessibility scans. Four selective visual comparisons run separately in a pinned Linux Playwright container, and four browser smoke scenarios run on each of Chromium, Firefox, and WebKit. Visual baselines stay outside `npm test` because pixel comparison requires the documented Linux environment.
 
 ## Test data and isolation
 
 Users, subscriptions, and payment keys are mutable, test-owned data. Each test creates unique values using the run ID, `workerIndex`, and a monotonic counter. Plans are shared immutable reference data resolved by code rather than generated or mutated. There is no shared account, global truncation, or test-order dependency.
 
-See [Contract Testing](docs/contract-testing.md), [Payment Integration Testing](docs/integration-testing.md), [UI Testing](docs/ui-testing.md), [API Testing](docs/api-testing.md), [Test Data Engineering](docs/test-data.md), [Architecture](docs/architecture.md), and [Test Strategy](docs/test-strategy.md).
+See [Accessibility Testing](docs/accessibility-testing.md), [Visual Testing](docs/visual-testing.md), [Contract Testing](docs/contract-testing.md), [Payment Integration Testing](docs/integration-testing.md), [UI Testing](docs/ui-testing.md), [API Testing](docs/api-testing.md), [Test Data Engineering](docs/test-data.md), [Architecture](docs/architecture.md), and [Test Strategy](docs/test-strategy.md).
 
 ## Project roadmap
 
@@ -123,6 +129,7 @@ See [Contract Testing](docs/contract-testing.md), [Payment Integration Testing](
 3. Subscription Domain and API Automation — complete
 4. UI Automation — complete
 5. Payment Provider and Integration Testing — complete
-6. **Contract Testing — complete**
+6. Contract Testing — complete
+7. **Advanced Quality — complete**
 
-Invoices, performance, dedicated accessibility auditing, visual regression, custom reporting, and flaky analytics are not implemented.
+Invoices, performance engineering, complete manual accessibility auditing, custom reporting, and flaky analytics are not implemented.

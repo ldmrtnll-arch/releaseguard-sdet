@@ -1,4 +1,4 @@
-# Phase 6 Architecture
+# Phase 7 Architecture
 
 ReleaseGuard keeps business behavior separate from transport and persistence while remaining intentionally small.
 
@@ -42,6 +42,21 @@ erDiagram
   SUBSCRIPTIONS ||--|| PAYMENTS : authorized_by
 ```
 
+Advanced quality targets the rendered application through three deliberately small browser layers:
+
+```mermaid
+flowchart TD
+  Quality[Quality layers] --> A11y[Accessibility]
+  Quality --> Visual[Visual regression]
+  Quality --> Functional[Functional and resilience UI]
+  A11y --> Web[React application]
+  Visual --> Web
+  Functional --> Web
+  Web --> API[Fastify API]
+  API --> DB[(PostgreSQL)]
+  API --> Provider[Payment Provider]
+```
+
 ## Application boundaries
 
 - React Router owns the five public/protected routes and Nginx provides the production SPA fallback.
@@ -79,9 +94,11 @@ Foreign keys use restrictive deletion behavior because users, plans, and subscri
 - Provider verification replays the generated Pact against a real Fastify HTTP listener. Named state handlers select deterministic fake-provider behavior without exposing Pact controls through the application API.
 - Pact artifacts are generated, ignored by Git, verified in the same run, and uploaded by CI for diagnosis. The monorepo does not require a broker in this phase.
 - Contract tests protect boundary compatibility; integration tests continue to prove that the API, provider, and PostgreSQL operate together at runtime.
+- Accessibility scans inspect six critical anonymous/authenticated states with WCAG-tagged axe rules; visual tests compare four selected regions in a pinned Linux browser environment.
+- User-facing resilience uses real API/provider failures for payment and session behavior. Network interception is reserved for deterministic rendering of otherwise destructive availability failures.
 
 ## Operational boundaries
 
 Health, readiness, structured logging, request IDs, secret redaction, Docker health checks, and graceful shutdown remain unchanged. Playwright launches direct non-watch API and Vite processes so Windows test runs release ports reliably between commands.
 
-The local database transaction cannot include the provider's HTTP operation. After an exhausted timeout, local rows are rolled back while the external result may remain unknown; reconciliation is intentionally deferred. Invoices and later quality layers remain outside Phase 6.
+The local database transaction cannot include the provider's HTTP operation. After an exhausted timeout, local rows are rolled back while the external result may remain unknown; reconciliation is intentionally deferred. Performance engineering and later quality layers remain outside Phase 7.

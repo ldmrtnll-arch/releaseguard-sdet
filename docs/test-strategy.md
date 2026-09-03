@@ -10,6 +10,8 @@ ReleaseGuard tests observable behavior at the cheapest useful layer and reserves
 - Integration tests cover password hashing, reference data, subscription history, real provider calls, retry/timeout behavior, approved-payment persistence, and concurrent creation without a double charge.
 - Consumer contract tests cover the real payment client's approved, declined, and provider-error expectations; provider verification proves the real HTTP provider still satisfies all three Pact interactions.
 - Chromium UI tests cover registration, login, invalid authentication, route protection, session restoration, plan display, subscription creation/change/cancellation/re-subscription, and logout.
+- Chromium resilience tests cover unavailable health/plans rendering, invalid-session recovery, payment decline, and provider outage without duplicating service retry semantics.
+- Accessibility scans cover six critical anonymous and authenticated states; four selective Linux visual baselines protect high-value layout regions.
 - A focused smoke subset covers the home integration, login, plans, and subscription creation on Chromium, Firefox, and WebKit.
 
 ## API smoke
@@ -56,6 +58,7 @@ All business actions occur through the API. The test database helper performs re
 
 - `npm run test:unit` — Vitest unit tests.
 - `npm run test:provider` — independent fake-provider contract and behavior.
+- `npm run test:a11y` — six Chromium axe scans using WCAG 2.0/2.1 A and AA tags.
 - `npm run test:contract:consumer` — generate the Pact through the production payment client and a Pact mock provider.
 - `npm run test:contract:provider` — verify an existing Pact against a real provider HTTP listener.
 - `npm run test:contract` — generate a clean Pact and then verify every interaction in order.
@@ -65,8 +68,11 @@ All business actions occur through the API. The test database helper performs re
 - `npm run test:ui:smoke` — fundamental Chromium UI journeys.
 - `npm run test:ui:regression` — Chromium UI regression scenarios.
 - `npm run test:ui:critical` — the browser-only critical lifecycle.
+- `npm run test:resilience` — user-facing failure and recovery scenarios.
 - `npm run test:ui:cross-browser` — smoke on Chromium, Firefox, and WebKit.
+- `npm run test:visual` — compare four baselines in the pinned Linux Playwright container.
+- `npm run test:visual:update` — deliberately regenerate Linux baselines for review.
 - `npm run test:smoke` — fundamental API behaviors tagged `@smoke`.
-- `npm test` — contracts, migrations, unit, provider, API, integration, and full Chromium UI coverage.
+- `npm test` — contracts, migrations, unit, provider, API, integration, full Chromium UI, and accessibility coverage.
 
-CI has a dedicated contract gate alongside quality/provider/API/integration work, full Chromium UI coverage, and a Firefox/WebKit smoke matrix. It retries Playwright once only to collect diagnostic evidence. Screenshots and video are retained on failure, traces on the first retry, and the generated Pact is retained as a short-lived CI artifact. Performance, dedicated accessibility auditing, and visual regression are not represented as implemented.
+CI adds one advanced-quality gate for accessibility and visual comparison in `mcr.microsoft.com/playwright:v1.62.1-noble`. Other jobs retain the contract gate, quality/provider/API/integration work, full Chromium UI coverage, and Firefox/WebKit smoke matrix. Automated accessibility is not a complete assistive-technology or legal audit; visual comparison does not prove functional correctness; UI resilience does not replace service integration tests. Performance is not represented as implemented.
