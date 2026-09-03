@@ -1,4 +1,4 @@
-# Phase 7 Architecture
+# Phase 8 Architecture
 
 ReleaseGuard keeps business behavior separate from transport and persistence while remaining intentionally small.
 
@@ -57,6 +57,15 @@ flowchart TD
   API --> Provider[Payment Provider]
 ```
 
+Performance testing adds a service-level path that does not involve the browser or Vite development server:
+
+```mermaid
+flowchart LR
+  K6[k6 2.2.0] --> API[Built Fastify API]
+  API --> DB[(PostgreSQL 17)]
+  API --> Provider[Payment Provider for subscription writes]
+```
+
 ## Application boundaries
 
 - React Router owns the five public/protected routes and Nginx provides the production SPA fallback.
@@ -96,9 +105,10 @@ Foreign keys use restrictive deletion behavior because users, plans, and subscri
 - Contract tests protect boundary compatibility; integration tests continue to prove that the API, provider, and PostgreSQL operate together at runtime.
 - Accessibility scans inspect six critical anonymous/authenticated states with WCAG-tagged axe rules; visual tests compare four selected regions in a pinned Linux browser environment.
 - User-facing resilience uses real API/provider failures for payment and session behavior. Network interception is reserved for deterministic rendering of otherwise destructive availability failures.
+- k6 owns run-scoped performance users and endpoint metrics. Read/auth load reaches the built API and PostgreSQL; the bounded subscription-write smoke also crosses the real provider boundary.
 
 ## Operational boundaries
 
 Health, readiness, structured logging, request IDs, secret redaction, Docker health checks, and graceful shutdown remain unchanged. Playwright launches direct non-watch API and Vite processes so Windows test runs release ports reliably between commands.
 
-The local database transaction cannot include the provider's HTTP operation. After an exhausted timeout, local rows are rolled back while the external result may remain unknown; reconciliation is intentionally deferred. Performance engineering and later quality layers remain outside Phase 7.
+The local database transaction cannot include the provider's HTTP operation. After an exhausted timeout, local rows are rolled back while the external result may remain unknown; reconciliation is intentionally deferred. Performance execution uses a separate Compose profile, so the normal application stack never starts load generation implicitly.

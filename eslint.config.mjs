@@ -17,6 +17,12 @@ export default tseslint.config(
     files: ['**/*.{ts,tsx}'],
   })),
   {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       globals: globals.node,
@@ -34,6 +40,15 @@ export default tseslint.config(
     files: ['apps/web/**/*.{ts,tsx}'],
     languageOptions: {
       globals: globals.browser,
+    },
+  },
+  {
+    files: ['tests/performance/**/*.js'],
+    languageOptions: {
+      globals: {
+        __ENV: 'readonly',
+        __VU: 'readonly',
+      },
     },
   },
 );

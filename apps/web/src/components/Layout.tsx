@@ -47,7 +47,7 @@ export function Layout() {
       </main>
 
       <footer>
-        <p>ReleaseGuard · Phase 7 Advanced Quality</p>
+        <p>ReleaseGuard · Phase 8 Performance Engineering</p>
       </footer>
     </div>
   );

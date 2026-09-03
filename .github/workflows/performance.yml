@@ -1,0 +1,41 @@
+name: Performance Load
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  performance-load:
+    name: Controlled k6 load
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      PERF_RUN_ID: gh-load-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run controlled k6 load
+        run: npm run test:perf:load
+
+      - name: Upload k6 summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-load-results
+          path: performance-results/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Clean up performance stack
+        if: always()
+        run: docker compose down --volumes
