@@ -1,4 +1,4 @@
-# Phase 8 Architecture
+# Phase 9 Architecture
 
 ReleaseGuard keeps business behavior separate from transport and persistence while remaining intentionally small.
 
@@ -66,6 +66,22 @@ flowchart LR
   API --> Provider[Payment Provider for subscription writes]
 ```
 
+Test observability is a read-only test infrastructure path and does not enter the product runtime:
+
+```mermaid
+flowchart LR
+  Playwright[Playwright projects] --> Standard[Line/List and HTML reporters]
+  Playwright --> Reporter[ReleaseGuard observability reporter]
+  Reporter --> JSON[Schema V1 JSON]
+  JSON --> Analyzer[Analyzer]
+  Analyzer --> Markdown[Markdown summary]
+  Markdown --> GitHub[GitHub Step Summary]
+  JSON --> Artifact[Per-job CI artifact]
+  Markdown --> Artifact
+```
+
+The reporter derives repository-relative identity and consumes final Playwright results after all retries. It does not intercept application traffic, mutate tests, or aggregate separate jobs. The pure analyzer and Markdown renderer are independently unit tested; GitHub publishing remains a thin cross-platform Node CLI.
+
 ## Application boundaries
 
 - React Router owns the five public/protected routes and Nginx provides the production SPA fallback.
@@ -106,9 +122,11 @@ Foreign keys use restrictive deletion behavior because users, plans, and subscri
 - Accessibility scans inspect six critical anonymous/authenticated states with WCAG-tagged axe rules; visual tests compare four selected regions in a pinned Linux browser environment.
 - User-facing resilience uses real API/provider failures for payment and session behavior. Network interception is reserved for deterministic rendering of otherwise destructive availability failures.
 - k6 owns run-scoped performance users and endpoint metrics. Read/auth load reaches the built API and PostgreSQL; the bounded subscription-write smoke also crosses the real provider boundary.
+- The observability reporter records Playwright logical tests and attempts while the standard HTML reporter retains detailed evidence. Vitest, Pact, and k6 keep their native result paths.
+- Stable observability IDs depend on relative file, project, suite/title, and repeat index. Only safe `request-id` annotations are accepted for optional correlation; no new product protocol is introduced.
 
 ## Operational boundaries
 
-Health, readiness, structured logging, request IDs, secret redaction, Docker health checks, and graceful shutdown remain unchanged. Playwright launches direct non-watch API and Vite processes so Windows test runs release ports reliably between commands.
+Health, readiness, structured logging, request IDs, secret redaction, Docker health checks, and graceful shutdown remain unchanged. Playwright launches direct non-watch API and Vite processes so Windows test runs release ports reliably between commands. Reporter writes are atomic, remain inside the repository, and redact credential-shaped error content; generated observability output is ignored by Git.
 
 The local database transaction cannot include the provider's HTTP operation. After an exhausted timeout, local rows are rolled back while the external result may remain unknown; reconciliation is intentionally deferred. Performance execution uses a separate Compose profile, so the normal application stack never starts load generation implicitly.

@@ -2,7 +2,7 @@
 
 ReleaseGuard is an SDET and Quality Engineering portfolio project built around a controlled SaaS subscription platform. The application is deliberately small; its purpose is to demonstrate reliable, observable, and maintainable quality engineering around a real domain.
 
-Phase 8 adds measured k6 performance baselines, a fast performance smoke gate, controlled API load, and a real subscription-write smoke to the functional and advanced-quality foundations from previous phases.
+Phase 9 adds repository-owned Playwright observability: stable test identities, retry/flaky evidence, probable failure classification, structured JSON, and compact CI summaries. It preserves the measured performance and functional quality foundations from previous phases.
 
 ## Current architecture
 
@@ -17,6 +17,7 @@ PaymentProviderClient -> Pact mock provider -> generated consumer contract
 Generated consumer contract -> Pact verifier -> real Fake Payment Provider over HTTP
 Accessibility scans + Visual comparisons + Functional UI -> React application
 k6 -> built Fastify API -> PostgreSQL / Payment Provider
+Playwright reporter -> versioned JSON -> analyzer -> Markdown / GitHub job summary
 ```
 
 The React application provides registration, login, session restoration, public plans, protected subscription management, logout, and responsive loading/error states. Browser automation exercises these screens against the real API without request mocking. New subscriptions are authorized against an independent deterministic provider before the subscription and approved payment are persisted atomically.
@@ -103,6 +104,8 @@ npm run test:contract:consumer
 npm run test:contract:provider
 npm run test:contract
 npm run test:api
+npm run test:analyze
+npm run test:summary
 npm run test:integration
 npm run test:perf:smoke
 npm run test:perf:load
@@ -118,7 +121,9 @@ npm run test:smoke
 npm test
 ```
 
-The default suite contains 97 executable cases: 10 unit, 10 payment-provider, 34 API, 12 integration, three consumer-contract tests, one provider-verification test, 21 Chromium functional UI tests, and six accessibility scans. Four selective visual comparisons run separately in a pinned Linux Playwright container, and four browser smoke scenarios run on each of Chromium, Firefox, and WebKit. Visual baselines stay outside `npm test` because pixel comparison requires the documented Linux environment.
+The default suite contains 110 executable cases: 23 unit, 10 payment-provider, 34 API, 12 integration, three consumer-contract tests, one provider-verification test, 21 Chromium functional UI tests, and six accessibility scans. Four selective visual comparisons run separately in a pinned Linux Playwright container, and four browser smoke scenarios run on each of Chromium, Firefox, and WebKit. Visual baselines stay outside `npm test` because pixel comparison requires the documented Linux environment.
+
+Every Playwright invocation also writes a sanitized, versioned observability JSON. `npm run test:analyze` validates it and creates Markdown locally or in the GitHub job summary. These artifacts expose logical outcomes, retries/flaky tests, p95 duration, slow tests, projects, tags, and probable failure categories without copying full stacks or attachment bodies.
 
 Performance remains a separate Docker-dependent gate. `npm run test:perf:smoke` executes a few correctness-checked reads, logins, and five unique subscription writes; `npm run test:perf:load` runs a 50-second, 12-VU peak profile manually. The measured local Docker baseline delivered 31.20 requests/second with zero errors; this is regression context, not a production capacity claim.
 
@@ -126,7 +131,7 @@ Performance remains a separate Docker-dependent gate. `npm run test:perf:smoke` 
 
 Users, subscriptions, and payment keys are mutable, test-owned data. Each test creates unique values using the run ID, `workerIndex`, and a monotonic counter. Plans are shared immutable reference data resolved by code rather than generated or mutated. There is no shared account, global truncation, or test-order dependency.
 
-See [Performance Testing](docs/performance-testing.md), [Accessibility Testing](docs/accessibility-testing.md), [Visual Testing](docs/visual-testing.md), [Contract Testing](docs/contract-testing.md), [Payment Integration Testing](docs/integration-testing.md), [UI Testing](docs/ui-testing.md), [API Testing](docs/api-testing.md), [Test Data Engineering](docs/test-data.md), [Architecture](docs/architecture.md), and [Test Strategy](docs/test-strategy.md).
+See [Test Observability](docs/test-observability.md), [Performance Testing](docs/performance-testing.md), [Accessibility Testing](docs/accessibility-testing.md), [Visual Testing](docs/visual-testing.md), [Contract Testing](docs/contract-testing.md), [Payment Integration Testing](docs/integration-testing.md), [UI Testing](docs/ui-testing.md), [API Testing](docs/api-testing.md), [Test Data Engineering](docs/test-data.md), [Architecture](docs/architecture.md), and [Test Strategy](docs/test-strategy.md).
 
 ## Project roadmap
 
@@ -139,4 +144,6 @@ See [Performance Testing](docs/performance-testing.md), [Accessibility Testing](
 7. **Advanced Quality — complete**
 8. **Performance Engineering — complete**
 
-Invoices, complete manual accessibility auditing, custom reporting, and flaky analytics are not implemented.
+9. **Test Observability and SDET Tooling — complete**
+
+Invoices, complete manual accessibility auditing, historical trend storage, and automatic flaky quarantine are not implemented.

@@ -4,7 +4,7 @@ ReleaseGuard tests observable behavior at the cheapest useful layer and reserves
 
 ## Current coverage
 
-- Unit tests cover email normalization, parallel-safe user and payment-key builders, retry classification, and production test-control safety.
+- Unit tests cover email normalization, parallel-safe user and payment-key builders, retry classification, production test-control safety, and synthetic observability classification/aggregation/Markdown/stable-ID behavior.
 - Provider tests cover its HTTP contract, deterministic scenarios, idempotency, and concurrency.
 - API tests cover health, authentication, public plans, subscription positive/negative behavior, ownership isolation, and the full lifecycle.
 - Integration tests cover password hashing, reference data, subscription history, real provider calls, retry/timeout behavior, approved-payment persistence, and concurrent creation without a double charge.
@@ -14,6 +14,7 @@ ReleaseGuard tests observable behavior at the cheapest useful layer and reserves
 - Accessibility scans cover six critical anonymous and authenticated states; four selective Linux visual baselines protect high-value layout regions.
 - A focused smoke subset covers the home integration, login, plans, and subscription creation on Chromium, Firefox, and WebKit.
 - k6 covers DB-backed plans reads, authenticated reads, bcrypt-backed login, and bounded subscription writes with measured latency/error thresholds.
+- Playwright observability records logical outcomes and every retry attempt, including synthetic flaky coverage at unit level without adding an intentionally flaky end-to-end test.
 
 ## API smoke
 
@@ -57,6 +58,9 @@ All business actions occur through the API. The test database helper performs re
 
 ## Suite organization
 
+- `npm run test:analyze` — validate the latest Playwright observability JSON and publish compact Markdown.
+- `npm run test:summary` — convenience alias for the same analysis/publishing command.
+
 - `npm run test:unit` — Vitest unit tests.
 - `npm run test:provider` — independent fake-provider contract and behavior.
 - `npm run test:a11y` — six Chromium axe scans using WCAG 2.0/2.1 A and AA tags.
@@ -78,6 +82,6 @@ All business actions occur through the API. The test database helper performs re
 - `npm run test:smoke` — fundamental API behaviors tagged `@smoke`.
 - `npm test` — contracts, migrations, unit, provider, API, integration, full Chromium UI, and accessibility coverage.
 
-CI adds advanced-quality and performance-smoke gates alongside contract, API/integration, full Chromium UI, and Firefox/WebKit smoke jobs. Automated accessibility is not a complete assistive-technology or legal audit; visual comparison does not prove functional correctness; UI resilience does not replace service integration tests.
+CI adds advanced-quality and performance-smoke gates alongside contract, API/integration, full Chromium UI, and Firefox/WebKit smoke jobs. Each Playwright invocation has a distinct JSON/Markdown artifact and an always-run analyzer; the original test step remains authoritative for job failure. V1 deliberately has no cross-job totals or historical trend store. Automated accessibility is not a complete assistive-technology or legal audit; visual comparison does not prove functional correctness; UI resilience does not replace service integration tests.
 
 Performance smoke is independent because it requires Docker/k6 and measures a built API rather than correctness test servers. Full load is manual and excluded from `npm test`; shared-runner results detect coarse regressions, not small latency changes or production capacity.

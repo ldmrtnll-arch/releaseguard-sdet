@@ -10,8 +10,22 @@ export default defineConfig({
   retries: isCi ? 1 : 0,
   workers: isCi ? 2 : 4,
   reporter: isCi
-    ? [['line'], ['html', { open: 'never' }]]
-    : [['list'], ['html', { open: 'never' }]],
+    ? [
+        ['line'],
+        ['html', { open: 'never' }],
+        [
+          './packages/test-observability/src/reporter.ts',
+          { outputFile: process.env.TEST_OBSERVABILITY_OUTPUT },
+        ],
+      ]
+    : [
+        ['list'],
+        ['html', { open: 'never' }],
+        [
+          './packages/test-observability/src/reporter.ts',
+          { outputFile: process.env.TEST_OBSERVABILITY_OUTPUT },
+        ],
+      ],
   use: {
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
