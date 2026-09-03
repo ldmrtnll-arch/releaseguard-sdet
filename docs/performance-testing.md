@@ -39,14 +39,16 @@ API request logging remained enabled. No bcrypt cost, database pool, cache, sche
 
 ## Workload profiles
 
-The smoke uses fixed iterations with at most five concurrent VUs and normally completes in roughly 2.2 seconds after setup:
+The smoke uses fixed iterations and reserves five VUs, but deliberately schedules endpoint groups in separate short windows. This prevents bcrypt and subscription writes from turning a read percentile into a measurement of cross-workload CPU contention. The measured window normally completes in roughly 11.2 seconds after setup:
 
-| Scenario           | Executor            | VUs | Iterations |
-| ------------------ | ------------------- | --: | ---------: |
-| Plans read         | `per-vu-iterations` |   1 |          3 |
-| Authenticated read | `per-vu-iterations` |   1 |          3 |
-| Login              | `per-vu-iterations` |   1 |          2 |
-| Subscription write | `shared-iterations` |   2 |          5 |
+| Scenario           | Executor            | VUs | Measured iterations | Start |
+| ------------------ | ------------------- | --: | ------------------: | ----: |
+| Plans read         | `per-vu-iterations` |   1 |                  12 |    0s |
+| Authenticated read | `per-vu-iterations` |   1 |                  12 |    3s |
+| Login              | `per-vu-iterations` |   1 |                   4 |    6s |
+| Subscription write | `shared-iterations` |   2 |                   5 |    9s |
+
+The offsets are k6 scenario scheduling rather than sleeps. They make each endpoint's small-sample trend attributable to that path; the subscription window still exercises two concurrent writers. Simultaneous mixed workload remains the responsibility of the controlled load profile below.
 
 The load uses three explicit `ramping-vus` scenarios. Each ramps for 10 seconds, holds for 30 seconds and ramps down for 10 seconds:
 
@@ -60,9 +62,11 @@ The combined peak is 12 VUs and the measured portion lasts 50 seconds. VUs are c
 
 ## Test data
 
-`setup()` creates five users for smoke and twelve for load. Accounts follow `perf.user.<run-id>.<index>@releaseguard.test`, share only an artificial test password, and receive independent JWTs. Write iterations use a deterministic run-scoped idempotency key and a unique account, preserving the one-active-subscription invariant.
+`setup()` creates six users for smoke and twelve for load. Accounts follow `perf.user.<run-id>.<index>@releaseguard.test`, share only an artificial test password, and receive independent JWTs. Five measured write iterations use deterministic run-scoped idempotency keys and unique accounts, preserving the one-active-subscription invariant. The sixth smoke account is reserved for warm-up.
 
-Setup registration/login requests are visible in global HTTP metrics but excluded from the endpoint-specific custom trends used for baseline thresholds. The database is append-only for local performance runs; no shared database is truncated. CI removes its disposable Compose volume after each job. A smoke run creates five users, five subscriptions and five payments; a load run creates twelve users and no subscription rows.
+After user preparation, smoke setup explicitly verifies API readiness, reads PostgreSQL-backed plans, performs an authenticated user read, and creates one warm-up subscription through the real provider. These requests are issued directly by the setup helper and never call the measured operations' `record()` function, so they are visible in global HTTP metrics and checks but cannot enter `plans_duration`, `authenticated_read_duration`, `login_duration`, or `subscription_write_duration`. Compose health checks guarantee readiness before k6 starts; setup checks fail immediately if the warmed paths are not correct. No arbitrary sleep is used.
+
+The database is append-only for local performance runs; no shared database is truncated. CI removes its disposable Compose volume after each job. A smoke run creates six users, six subscriptions and six payments, including warm-up data; a load run creates twelve users and no subscription rows.
 
 ## Baseline methodology
 
@@ -88,9 +92,24 @@ The full run issued 1,715 HTTP requests at 31.20 requests/second, completed 1,69
 - Subscription-write discovery p95 ranged from 362ms to 396ms. The local smoke limit is 750ms because five samples execute concurrently across the database/provider boundary.
 - Every scenario error rate and global HTTP failure rate must stay below 1%; checks must remain above 99%.
 
-Smoke read limits are 300ms rather than 150ms because each trend has only three samples and overlaps with bcrypt and write startup work. It is a coarse PR gate, not a microbenchmark.
+Smoke read limits remain 300ms rather than the controlled load's 150ms because the profile is a coarse shared-runner regression gate, not a microbenchmark. Explicit warm-up, 12 measured read samples, and scheduled endpoint windows now address cold-start and cross-workload contamination without relaxing that limit.
 
 The local baseline and the pull-request smoke are intentionally calibrated for different environments. The controlled local smoke keeps the 400ms login and 750ms subscription-write limits. GitHub-hosted runners share CPU and I/O, and the first real PR run measured login p95 at 436.69ms and subscription-write p95 at 778.69ms. The CI job therefore overrides only those smoke limits to 600ms and 1,000ms respectively, leaving approximately 37% and 28% headroom over that observed run. These bounds preserve a coarse regression gate while avoiding a failure caused by modest shared-runner variance. The manual load retains its 150ms read and 300ms login thresholds derived from the controlled baseline.
+
+Two repeated containerized runs of the statistically hardened smoke completed the measured window in 11.2 seconds each with 100% of 49 checks and zero HTTP or custom errors:
+
+| Scenario           | Run |       p50 |       p90 |       p95 | Errors |
+| ------------------ | --: | --------: | --------: | --------: | -----: |
+| Plans read         |   1 |  0.644 ms |  0.873 ms |  0.911 ms |  0.00% |
+| Plans read         |   2 |  0.578 ms |  0.635 ms |  0.927 ms |  0.00% |
+| Authenticated read |   1 |  0.764 ms |   1.01 ms |   1.68 ms |  0.00% |
+| Authenticated read |   2 |  0.756 ms |   1.07 ms |   1.40 ms |  0.00% |
+| Login              |   1 | 182.64 ms | 186.66 ms | 187.47 ms |  0.00% |
+| Login              |   2 | 183.69 ms | 186.76 ms | 186.98 ms |  0.00% |
+| Subscription write |   1 |   7.71 ms |  14.04 ms |  15.73 ms |  0.00% |
+| Subscription write |   2 |   7.72 ms |  15.06 ms |  16.60 ms |  0.00% |
+
+These local values do not justify tightening limits or predict hosted-runner latency. They show that the current 300ms plans threshold does not need another increase after correcting the methodology.
 
 ## Smoke gate
 
@@ -106,7 +125,7 @@ On Linux, the wrapper maps only the k6 container to the host process UID/GID. Th
 
 ## CI strategy
 
-The PR smoke is intentionally small and uses additional, evidence-based margin suitable for shared runners. The manual load workflow remains the controlled regression experiment with thresholds derived from the local baseline. GitHub-hosted variability means the PR gate detects substantial regressions, not 5ms changes, and hosted-runner results are never used as a capacity claim.
+The PR smoke is intentionally small, warmed, endpoint-windowed, and uses additional evidence-based margin suitable for shared runners. The manual load workflow remains the concurrent controlled regression experiment with thresholds derived from the local baseline. GitHub-hosted variability means the PR gate detects substantial regressions, not 5ms changes, and hosted-runner results are never used as a capacity claim.
 
 ## Limitations
 

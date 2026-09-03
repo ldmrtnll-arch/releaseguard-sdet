@@ -1,4 +1,4 @@
-import { prepareUsers } from './helpers/setup.js';
+import { prepareUsers, warmUpSmoke } from './helpers/setup.js';
 import {
   authenticatedRead,
   login,
@@ -42,7 +42,7 @@ export const options = {
       executor: 'per-vu-iterations',
       exec: 'runPlansRead',
       vus: 1,
-      iterations: 3,
+      iterations: 12,
       maxDuration: '15s',
       gracefulStop: '5s',
     },
@@ -50,7 +50,8 @@ export const options = {
       executor: 'per-vu-iterations',
       exec: 'runAuthenticatedRead',
       vus: 1,
-      iterations: 3,
+      iterations: 12,
+      startTime: '3s',
       maxDuration: '15s',
       gracefulStop: '5s',
     },
@@ -58,7 +59,8 @@ export const options = {
       executor: 'per-vu-iterations',
       exec: 'runLogin',
       vus: 1,
-      iterations: 2,
+      iterations: 4,
+      startTime: '6s',
       maxDuration: '15s',
       gracefulStop: '5s',
     },
@@ -67,6 +69,7 @@ export const options = {
       exec: 'runSubscriptionWrite',
       vus: 2,
       iterations: 5,
+      startTime: '9s',
       maxDuration: '20s',
       gracefulStop: '5s',
     },
@@ -74,7 +77,9 @@ export const options = {
 };
 
 export function setup() {
-  return prepareUsers(5);
+  const data = prepareUsers(6);
+  warmUpSmoke(data);
+  return data;
 }
 
 export function runPlansRead() {
