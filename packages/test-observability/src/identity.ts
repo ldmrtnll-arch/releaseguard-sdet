@@ -18,8 +18,8 @@ export function stableTestId(identity: StableTestIdentity): string {
 }
 
 export function browserForProject(project: string): string | null {
-  if (project === 'ui-firefox-smoke') return 'firefox';
-  if (project === 'ui-webkit-smoke') return 'webkit';
+  if (['ui-firefox', 'ui-firefox-smoke'].includes(project)) return 'firefox';
+  if (['ui-webkit', 'ui-webkit-smoke'].includes(project)) return 'webkit';
   if (['ui-chromium', 'accessibility', 'visual'].includes(project))
     return 'chromium';
   return null;

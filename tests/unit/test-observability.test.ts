@@ -239,6 +239,8 @@ describe('Markdown summary and redaction', () => {
 describe('browser mapping', () => {
   it('only identifies browser-oriented projects', () => {
     expect(browserForProject('ui-firefox-smoke')).toBe('firefox');
+    expect(browserForProject('ui-firefox')).toBe('firefox');
+    expect(browserForProject('ui-webkit')).toBe('webkit');
     expect(browserForProject('visual')).toBe('chromium');
     expect(browserForProject('api')).toBeNull();
   });

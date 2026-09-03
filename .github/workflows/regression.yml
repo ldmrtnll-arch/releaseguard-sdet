@@ -1,0 +1,107 @@
+name: Extended regression
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 0'
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 22
+
+concurrency:
+  group: extended-regression
+  cancel-in-progress: false
+
+jobs:
+  full-browser-regression:
+    name: ${{ matrix.label }} full UI regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - browser: chromium
+            label: Chromium
+          - browser: firefox
+            label: Firefox
+          - browser: webkit
+            label: WebKit
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: releaseguard
+          POSTGRES_PASSWORD: releaseguard_ci
+          POSTGRES_USER: releaseguard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U releaseguard -d releaseguard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      CI: true
+      DATABASE_URL: postgresql://releaseguard:releaseguard_ci@127.0.0.1:5432/releaseguard
+      ENABLE_TEST_CONTROLS: true
+      JWT_SECRET: releaseguard-ci-only-secret-not-for-production
+      PAYMENT_PROVIDER_URL: http://127.0.0.1:4100
+      TEST_RUN_ID: gh-full-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}
+      TEST_OBSERVABILITY_ALLOW_MISSING: true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Apply database migrations
+        run: npm run db:migrate
+
+      - name: Run full browser regression
+        run: npx playwright test --project=ui-${{ matrix.browser }}
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-${{ matrix.browser }}-full.json
+
+      - name: Analyze browser regression
+        if: always()
+        run: npm run test:analyze
+        env:
+          TEST_OBSERVABILITY_OUTPUT: test-observability-results/ui-${{ matrix.browser }}-full.json
+
+      - name: Upload browser observability
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: observability-${{ matrix.browser }}-full
+          path: test-observability-results/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-${{ matrix.browser }}-full
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7

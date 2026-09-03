@@ -2,7 +2,7 @@
 
 ReleaseGuard is an SDET and Quality Engineering portfolio project built around a controlled SaaS subscription platform. The application is deliberately small; its purpose is to demonstrate reliable, observable, and maintainable quality engineering around a real domain.
 
-Phase 9 adds repository-owned Playwright observability: stable test identities, retry/flaky evidence, probable failure classification, structured JSON, and compact CI summaries. It preserves the measured performance and functional quality foundations from previous phases.
+Phase 10 organizes the existing test capabilities into a branch-protection-ready GitHub Actions quality platform. Independent PR gates provide fast feedback, while full cross-browser regression and controlled load stay in cost-aware manual or scheduled workflows.
 
 ## Current architecture
 
@@ -114,6 +114,8 @@ npm run test:ui:smoke
 npm run test:ui:regression
 npm run test:ui:critical
 npm run test:ui:cross-browser
+npm run test:ui:firefox:full
+npm run test:ui:webkit:full
 npm run test:resilience
 npm run test:visual
 npm run test:visual:update
@@ -127,11 +129,17 @@ Every Playwright invocation also writes a sanitized, versioned observability JSO
 
 Performance remains a separate Docker-dependent gate. `npm run test:perf:smoke` executes a few correctness-checked reads, logins, and five unique subscription writes; `npm run test:perf:load` runs a 50-second, 12-VU peak profile manually. The measured local Docker baseline delivered 31.20 requests/second with zero errors; this is regression context, not a production capacity claim.
 
+## Quality Platform
+
+Every pull request runs static/unit quality, API/integration, Pact, full Chromium UI, Firefox/WebKit smoke, accessibility/visual, and warmed k6 smoke gates in parallel. Each Playwright gate publishes a sanitized per-job summary and observability artifact; failure-only diagnostics retain HTML reports, traces, screenshots, videos, and visual diffs.
+
+A weekly/manual extended workflow runs the full UI suite on Chromium, Firefox, and WebKit in isolated jobs. Controlled k6 load remains manual. See [CI Quality Platform](docs/ci-quality-platform.md) for exact required checks, triggers, concurrency, artifacts, and the failure-investigation path.
+
 ## Test data and isolation
 
 Users, subscriptions, and payment keys are mutable, test-owned data. Each test creates unique values using the run ID, `workerIndex`, and a monotonic counter. Plans are shared immutable reference data resolved by code rather than generated or mutated. There is no shared account, global truncation, or test-order dependency.
 
-See [Test Observability](docs/test-observability.md), [Performance Testing](docs/performance-testing.md), [Accessibility Testing](docs/accessibility-testing.md), [Visual Testing](docs/visual-testing.md), [Contract Testing](docs/contract-testing.md), [Payment Integration Testing](docs/integration-testing.md), [UI Testing](docs/ui-testing.md), [API Testing](docs/api-testing.md), [Test Data Engineering](docs/test-data.md), [Architecture](docs/architecture.md), and [Test Strategy](docs/test-strategy.md).
+See [CI Quality Platform](docs/ci-quality-platform.md), [Test Observability](docs/test-observability.md), [Performance Testing](docs/performance-testing.md), [Accessibility Testing](docs/accessibility-testing.md), [Visual Testing](docs/visual-testing.md), [Contract Testing](docs/contract-testing.md), [Payment Integration Testing](docs/integration-testing.md), [UI Testing](docs/ui-testing.md), [API Testing](docs/api-testing.md), [Test Data Engineering](docs/test-data.md), [Architecture](docs/architecture.md), and [Test Strategy](docs/test-strategy.md).
 
 ## Project roadmap
 
@@ -145,5 +153,7 @@ See [Test Observability](docs/test-observability.md), [Performance Testing](docs
 8. **Performance Engineering — complete**
 
 9. **Test Observability and SDET Tooling — complete**
+
+10. **GitHub Actions Quality Platform — complete**
 
 Invoices, complete manual accessibility auditing, historical trend storage, and automatic flaky quarantine are not implemented.
