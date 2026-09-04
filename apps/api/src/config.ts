@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { z } from 'zod';
 
 const environmentFile = new URL('../../../.env', import.meta.url);
+const localJwtSecret = 'releaseguard-local-only-secret-change-me';
 
 if (existsSync(environmentFile)) {
   process.loadEnvFile(environmentFile);
@@ -19,10 +20,7 @@ const environmentSchema = z.object({
       'postgresql://releaseguard:releaseguard_dev@localhost:5433/releaseguard',
     ),
   JWT_EXPIRES_IN: z.string().min(1).default('1h'),
-  JWT_SECRET: z
-    .string()
-    .min(32)
-    .default('releaseguard-local-only-secret-change-me'),
+  JWT_SECRET: z.string().min(32).default(localJwtSecret),
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
     .default('development'),
@@ -63,6 +61,13 @@ export function loadConfig(
     throw new Error(
       `Invalid environment configuration: ${z.prettifyError(parsed.error)}`,
     );
+  }
+
+  if (
+    parsed.data.NODE_ENV === 'production' &&
+    parsed.data.JWT_SECRET === localJwtSecret
+  ) {
+    throw new Error('JWT_SECRET must be explicitly configured in production.');
   }
 
   return {

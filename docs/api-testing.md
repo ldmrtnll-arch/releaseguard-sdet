@@ -48,7 +48,7 @@ This avoids coupling every test to storage while still testing the database guar
 
 Two create requests are issued concurrently for the same authenticated user. The test accepts either request as the winner, expects one `201` and one `409`, then verifies exactly one active database row. The application maps PostgreSQL unique violation `23505` for the named partial index to `SUBSCRIPTION_ALREADY_ACTIVE`.
 
-Phase 5 also verifies one approved database payment and one provider authorization. The API takes a transaction-level advisory lock before its active-state check and external authorization, preventing two concurrent requests for the same user from both charging.
+Integration coverage also verifies one approved database payment and one provider authorization. The API takes a transaction-level advisory lock before its active-state check and external authorization, preventing two concurrent requests for the same user from both charging.
 
 ## Anti-patterns avoided
 
