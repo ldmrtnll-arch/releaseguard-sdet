@@ -11,6 +11,9 @@ blob-report/
 performance-results/
 test-observability-results/
 pacts/
+*.tmp
+.tmp/
+tmp/
 *.log
 .idea/
 .vscode/

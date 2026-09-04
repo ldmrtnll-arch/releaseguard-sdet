@@ -47,7 +47,7 @@ export function Layout() {
       </main>
 
       <footer>
-        <p>ReleaseGuard · Phase 8 Performance Engineering</p>
+        <p>ReleaseGuard · Quality Engineering Portfolio</p>
       </footer>
     </div>
   );

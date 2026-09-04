@@ -1,6 +1,6 @@
 # Playwright Test Observability
 
-Phase 9 adds a small, repository-owned observability layer for Playwright. It turns each execution into a stable JSON document and a compact Markdown summary without replacing Playwright's terminal or HTML reporters.
+ReleaseGuard includes a small, repository-owned observability layer for Playwright. It turns each execution into a stable JSON document and a compact Markdown summary without replacing Playwright's terminal or HTML reporters.
 
 ## Run it
 
@@ -65,7 +65,7 @@ Request correlation is optional. A test or fixture may expose a safe ID without 
 testInfo.annotations.push({ type: 'request-id', description: requestId });
 ```
 
-Only annotations named `request-id` are captured. Current coverage does not guarantee this annotation for every request, so the field is often empty; broad protocol changes are intentionally outside Phase 9.
+Only annotations named `request-id` are captured. Current coverage does not guarantee this annotation for every request, so the field is often empty; broad product-protocol changes are intentionally outside this tool's scope.
 
 ## Limitations and flaky policy
 

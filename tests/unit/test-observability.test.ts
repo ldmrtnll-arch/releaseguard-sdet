@@ -226,8 +226,9 @@ describe('Markdown summary and redaction', () => {
   });
 
   it('redacts credentials and truncates noisy errors', () => {
+    const privatePath = ['C:', 'Users', 'private-user', 'work'].join('\\');
     const message = sanitizeErrorMessage(
-      `C:\\Users\\private-user\\work Bearer abc.def password=super-secret ${'x'.repeat(1_000)}`,
+      `${privatePath} Bearer abc.def password=super-secret ${'x'.repeat(1_000)}`,
     );
     expect(message).not.toContain('private-user');
     expect(message).not.toContain('abc.def');

@@ -1,4 +1,4 @@
-# Phase 10 Architecture
+# ReleaseGuard Architecture
 
 ## CI quality architecture
 
@@ -133,7 +133,7 @@ Foreign keys use restrictive deletion behavior because users, plans, and subscri
 
 - API clients centralize paths and Authorization headers but never assert or throw on HTTP error status.
 - Test-scoped fixtures create authenticated and subscribed state only when a test needs it.
-- The user builder stays worker-scoped and keeps `workerIndex` from Phase 2.
+- The user builder stays worker-scoped and includes `workerIndex` in generated identities.
 - Zod schemas validate only important public response fields.
 - Direct database access is read-only and limited to invariants the public API cannot prove efficiently.
 - UI setup uses API clients for authenticated or subscribed preconditions; business behavior under test remains browser-driven.
@@ -150,6 +150,6 @@ Foreign keys use restrictive deletion behavior because users, plans, and subscri
 
 ## Operational boundaries
 
-Health, readiness, structured logging, request IDs, secret redaction, Docker health checks, and graceful shutdown remain unchanged. Playwright launches direct non-watch API and Vite processes so Windows test runs release ports reliably between commands. Reporter writes are atomic, remain inside the repository, and redact credential-shaped error content; generated observability output is ignored by Git.
+Health, readiness, structured logging, request IDs, secret redaction, Docker health checks, and graceful shutdown remain unchanged. Production API startup rejects the local JWT secret default, and production mode disables API test controls even if they are requested. Playwright launches direct non-watch API and Vite processes so Windows test runs release ports reliably between commands. Reporter writes are atomic, remain inside the repository, and redact credential-shaped error content; generated observability output is ignored by Git.
 
 The local database transaction cannot include the provider's HTTP operation. After an exhausted timeout, local rows are rolled back while the external result may remain unknown; reconciliation is intentionally deferred. Performance execution uses a separate Compose profile, so the normal application stack never starts load generation implicitly.

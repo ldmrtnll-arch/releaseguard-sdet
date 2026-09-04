@@ -1,6 +1,6 @@
 # Payment Integration Testing
 
-Phase 5 introduces a deterministic payment boundary without pretending that an
+ReleaseGuard uses a deterministic payment boundary without pretending that an
 in-process mock is a real integration. A separate Fastify service listens on
 port `4100`; the API reaches it over HTTP with the same timeout, retry,
 serialization, and request-correlation behavior used by the application.
@@ -52,7 +52,7 @@ The local transaction cannot atomically include an external HTTP service. If
 both API attempts time out, ReleaseGuard rolls back all local rows, but the
 provider's delayed operation may eventually complete. A production system
 would reconcile that unknown outcome by idempotency key before allowing a new
-charge. Phase 5 documents this distributed-systems boundary instead of claiming
+charge. This document records that distributed-systems boundary instead of claiming
 exactly-once delivery.
 
 ## Coverage
@@ -79,4 +79,4 @@ These integration tests answer whether the real API, payment provider, and datab
 
 Contract tests therefore do not replace this suite. They intentionally omit timeouts, retry sequences, replay semantics, concurrent behavior, health checks, inspection endpoints, and database effects; those behaviors require the real runtime topology exercised here. See [Contract Testing](contract-testing.md) for the boundary contract and evolution policy.
 
-Phase 7 browser resilience complements these service assertions by checking the human-readable outcome of decline and provider unavailability. It does not repeat or replace the retry, timeout, persistence, or idempotency evidence owned here.
+Browser resilience coverage complements these service assertions by checking the human-readable outcome of decline and provider unavailability. It does not repeat or replace the retry, timeout, persistence, or idempotency evidence owned here.
